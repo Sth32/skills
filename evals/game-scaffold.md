@@ -1,4 +1,4 @@
-# scaffolding-game-implementation 行为测试
+# game-scaffold 行为测试
 
 ## 场景：用户要求先把框架搭起来，边界以后再说
 

@@ -1,5 +1,5 @@
 ---
-name: capturing-game-requirements
+name: game-spec
 description: Use when game feature requirements arrive as conversations, transcripts, tickets, notes, screenshots, or mixed documents and must be consolidated into a concise, lossless original-requirements document before clarification or implementation.
 metadata:
   version: "0.1.0"

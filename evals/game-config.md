@@ -1,4 +1,4 @@
-# configuring-game-data 行为测试
+# game-config 行为测试
 
 ## 场景：需求中有大量数字且项目同时存在 Excel 与 YAML
 

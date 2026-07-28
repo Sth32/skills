@@ -30,14 +30,14 @@
 
 | 技能 | 主要产物 | 负责解决的问题 |
 |---|---|---|
-| `capturing-game-requirements` | `01-原始需求.md` | 将口述、聊天、工单和各类文档无损压缩为简洁的原始需求 |
-| `discovering-game-requirements` | `02-需求挖掘.md` | 基于需求与现有代码，向需求负责人确认真正影响产品规则的遗漏点 |
-| `clarifying-game-implementation` | `03-程序实现澄清.md` | 向负责程序收敛高影响架构、数据、兼容和失败处理决策 |
-| `configuring-game-data` | `04-配置规划.md` | 识别可配置项、选择目标表，并在确认范围后配表和验证导出 |
-| `scaffolding-game-implementation` | `05-框架实现方案.md` + 可运行骨架 | 定型模块、核心数据和主流程，允许安全延期细节但不影响服务器和其他系统 |
-| `completing-game-implementation` | `06-完整实现方案.md` + 完整代码 | 沿已确认框架补齐行为、边界、失败、兼容、测试和运维闭环 |
-| `reviewing-game-feature` | `07-交叉评审.md` | 使用独立多 Agent 视角交叉证伪需求、配置、架构和实现问题 |
-| `documenting-game-feature` | `docs/features/<feature>.md` | 将实际实现提炼为短小、稳定、以代码导航和坑点提醒为主的长期文档 |
+| `game-spec` | `01-原始需求.md` | 将口述、聊天、工单和各类文档无损压缩为简洁的原始需求 |
+| `game-discovery` | `02-需求挖掘.md` | 基于需求与现有代码，向需求负责人确认真正影响产品规则的遗漏点 |
+| `game-tech-clarify` | `03-程序实现澄清.md` | 向负责程序收敛高影响架构、数据、兼容和失败处理决策 |
+| `game-config` | `04-配置规划.md` | 识别可配置项、选择目标表，并在确认范围后配表和验证导出 |
+| `game-scaffold` | `05-框架实现方案.md` + 可运行骨架 | 定型模块、核心数据和主流程，允许安全延期细节但不影响服务器和其他系统 |
+| `game-implement` | `06-完整实现方案.md` + 完整代码 | 沿已确认框架补齐行为、边界、失败、兼容、测试和运维闭环 |
+| `game-review` | `07-交叉评审.md` | 使用独立多 Agent 视角交叉证伪需求、配置、架构和实现问题 |
+| `game-docs` | `docs/features/<feature>.md` | 将实际实现提炼为短小、稳定、以代码导航和坑点提醒为主的长期文档 |
 
 默认过程文档目录：
 

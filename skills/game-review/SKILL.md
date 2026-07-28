@@ -1,5 +1,5 @@
 ---
-name: reviewing-game-feature
+name: game-review
 description: Use when a game feature has requirements, implementation decisions, configuration changes, code, and tests ready for evidence-based cross-review by multiple independent agents before merge, release, or final documentation.
 metadata:
   version: "0.1.0"

@@ -1,5 +1,5 @@
 ---
-name: clarifying-game-implementation
+name: game-tech-clarify
 description: Use when original game requirements and requirement-discovery decisions are stable enough to clarify high-impact architecture, data, compatibility, failure-handling, rollout, and verification decisions with the responsible programmer before implementation planning or coding.
 metadata:
   version: "0.1.0"
@@ -16,7 +16,7 @@ metadata:
 ## 前置条件与产物
 
 - 必须读取原始需求与需求挖掘文档；
-- 若仍存在会改变实现方向的 P0/P1 产品问题，先回到 `discovering-game-requirements`，不要用技术假设替代产品决定；
+- 若仍存在会改变实现方向的 P0/P1 产品问题，先回到 `game-discovery`，不要用技术假设替代产品决定；
 - 默认写入：
 
 ```text

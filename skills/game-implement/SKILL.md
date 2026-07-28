@@ -1,5 +1,5 @@
 ---
-name: completing-game-implementation
+name: game-implement
 description: Use when a game feature already has an approved runnable implementation skeleton and needs its remaining product behavior, edge cases, failure handling, compatibility, tests, and operational details completed without casually redesigning the established framework.
 metadata:
   version: "0.1.0"
@@ -24,7 +24,7 @@ metadata:
 - `05-框架实现方案.md`；
 - 已实现骨架、当前 diff、测试和启动结果。
 
-若骨架不能安全运行，先回到 `scaffolding-game-implementation` 修复，不在不稳定基线上继续扩展。
+若骨架不能安全运行，先回到 `game-scaffold` 修复，不在不稳定基线上继续扩展。
 
 默认写入：
 

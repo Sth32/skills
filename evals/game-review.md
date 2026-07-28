@@ -1,4 +1,4 @@
-# reviewing-game-feature 行为测试
+# game-review 行为测试
 
 ## 场景：多个 reviewer 对同一资产功能进行 review
 

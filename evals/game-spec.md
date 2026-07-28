@@ -1,4 +1,4 @@
-# Eval: capturing-game-requirements
+# Eval: game-spec
 
 ## 场景 1：限定词不能丢失
 

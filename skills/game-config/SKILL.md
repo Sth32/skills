@@ -1,5 +1,5 @@
 ---
-name: configuring-game-data
+name: game-config
 description: Use when confirmed game requirements contain numbers, text, rewards, thresholds, mappings, switches, or other values that may belong in the project's existing configuration and export pipeline before feature code is implemented.
 metadata:
   version: "0.1.0"

@@ -1,5 +1,5 @@
 ---
-name: discovering-game-requirements
+name: game-discovery
 description: Use when a game feature has an original-requirements document and needs high-value product clarification with its designer or requirement owner, informed by the current codebase while avoiding implementation-level questions.
 metadata:
   version: "0.1.0"
@@ -15,7 +15,7 @@ metadata:
 
 ## 前置条件与产物
 
-- 必须先有 `01-原始需求.md`；没有时先使用 `capturing-game-requirements`。
+- 必须先有 `01-原始需求.md`；没有时先使用 `game-spec`。
 - 默认写入：
 
 ```text

@@ -1,4 +1,4 @@
-# Eval: discovering-game-requirements
+# Eval: game-discovery
 
 ## 场景 1：不向策划问实现问题
 

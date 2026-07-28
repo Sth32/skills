@@ -1,4 +1,4 @@
-# completing-game-implementation 行为测试
+# game-implement 行为测试
 
 ## 场景：骨架可运行但存在 TODO、旧数据与重复请求风险
 

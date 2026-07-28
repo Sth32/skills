@@ -1,4 +1,4 @@
-# documenting-game-feature 行为测试
+# game-docs 行为测试
 
 ## 场景：过程文档很长且代码已偏离早期方案
 

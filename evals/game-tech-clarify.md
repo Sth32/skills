@@ -1,4 +1,4 @@
-# Eval: clarifying-game-implementation
+# Eval: game-tech-clarify
 
 ## 场景 1：事实自己查
 

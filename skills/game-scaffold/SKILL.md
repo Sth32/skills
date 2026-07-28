@@ -1,5 +1,5 @@
 ---
-name: scaffolding-game-implementation
+name: game-scaffold
 description: Use when game requirements, product decisions, implementation clarifications, and configuration planning are stable enough to define and implement a runnable feature skeleton without completing every behavior or edge case.
 metadata:
   version: "0.1.0"

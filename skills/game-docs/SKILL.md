@@ -1,5 +1,5 @@
 ---
-name: documenting-game-feature
+name: game-docs
 description: Use when a game feature's planning artifacts and implemented code need to be converted into a durable in-repository guide that preserves architecture, invariants, integration points, and pitfalls without duplicating volatile implementation details.
 metadata:
   version: "0.1.0"
