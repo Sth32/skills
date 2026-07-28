@@ -2,7 +2,7 @@
 name: game-config
 description: Use when confirmed game requirements contain values that may belong in project configuration and the agent must choose target tables, confirm edit scope, and produce a concise delta-focused configuration plan before modifying text or Excel sources.
 metadata:
-  version: "0.2.0"
+  version: "0.2.1"
 ---
 
 # 规划并修改游戏配置
@@ -40,14 +40,16 @@ docs/requirements/<feature>/04-配置执行清单.md
 
 ## 主文档长度契约
 
-`04-配置规划.md` 默认应在 **120 个非空行以内**，并且只保留四类信息：
+`04-配置规划.md` 的目标是 **40–80 个非空行**，并且只保留四类信息：
 
 1. 配置结论；
 2. 配置对象与目标表；
 3. 需要用户或负责人确认的高影响事项；
 4. 实际修改与验证结果。
 
-超过 120 个非空行时，先删除重复和低价值细节；仍然超长才把执行细节移入可选清单。复杂不等于可以写成字段百科。
+超过 80 个非空行时，必须删除重复、合并同类对象，或把执行细节移入可选清单。只有新增复杂表结构时才允许例外，并需说明超长原因。复杂不等于可以写成字段百科。
+
+表格单元格使用短语或 1–2 个短句，不在一个单元格中堆放完整行定义。
 
 ## 什么应该配置化
 
