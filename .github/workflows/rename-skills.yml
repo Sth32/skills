@@ -1,0 +1,77 @@
+name: Rename skills
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/rename-skills.yml
+
+permissions:
+  contents: write
+
+jobs:
+  rename:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rename skills and references
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          mapping = {
+              "capturing-game-requirements": "game-spec",
+              "discovering-game-requirements": "game-discovery",
+              "clarifying-game-implementation": "game-tech-clarify",
+              "configuring-game-data": "game-config",
+              "scaffolding-game-implementation": "game-scaffold",
+              "completing-game-implementation": "game-implement",
+              "reviewing-game-feature": "game-review",
+              "documenting-game-feature": "game-docs",
+          }
+
+          root = Path(".")
+          for path in root.rglob("*"):
+              if not path.is_file() or ".git" in path.parts:
+                  continue
+              try:
+                  text = path.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+              updated = text
+              for old, new in mapping.items():
+                  updated = updated.replace(old, new)
+              if updated != text:
+                  path.write_text(updated, encoding="utf-8")
+
+          for old, new in mapping.items():
+              old_dir = root / "skills" / old
+              new_dir = root / "skills" / new
+              if old_dir.exists():
+                  old_dir.rename(new_dir)
+
+              old_eval = root / "evals" / f"{old}.md"
+              new_eval = root / "evals" / f"{new}.md"
+              if old_eval.exists():
+                  old_eval.rename(new_eval)
+          PY
+
+          python scripts/validate_skills.py
+          if grep -RInE 'capturing-game-requirements|discovering-game-requirements|clarifying-game-implementation|configuring-game-data|scaffolding-game-implementation|completing-game-implementation|reviewing-game-feature|documenting-game-feature' README.md skills evals; then
+            echo "Old skill names remain" >&2
+            exit 1
+          fi
+
+      - name: Commit migration
+        shell: bash
+        run: |
+          rm .github/workflows/rename-skills.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Rename skills for concise invocation"
+          git push
