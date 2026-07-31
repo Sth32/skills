@@ -1,6 +1,6 @@
 ---
 name: game-scaffold
-description: Use when a game feature needs its multithreaded server skeleton designed and implemented: entity properties, data authority and persistence, startup mirror synchronization, client visibility, and empty RPC or event routing, while leaving all product rules and side effects to game-implement.
+description: "Use when a game feature needs its multithreaded server skeleton designed and implemented: entity properties, data authority and persistence, startup mirror synchronization, client visibility, and empty RPC or event routing, while leaving all product rules and side effects to game-implement."
 metadata:
   version: "0.2.1"
 ---
