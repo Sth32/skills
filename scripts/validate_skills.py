@@ -10,6 +10,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS_DIR = ROOT / "skills"
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+DOCUMENT_TIMING_RULE = (
+    "**文档更新时序硬限制：任何新事实、确认、执行结果或验证结果只要改变本阶段内容，"
+    "必须在同一轮立即原位更新本阶段唯一文档，并明确告知用户已更新的文件路径；"
+    "不得等到阶段结束、批次结束或用户再次提醒。发现结论会改变更早阶段文档时，"
+    "必须主动说明受影响文档和拟修改内容，先获得用户确认，再更新上游文档；"
+    "未确认前不得静默改写。**"
+)
 
 
 def parse_frontmatter(path: Path) -> dict[str, str]:
@@ -36,6 +43,8 @@ def validate_skill(skill_dir: Path) -> list[str]:
     if not skill_file.is_file():
         return ["missing SKILL.md"]
 
+    text = skill_file.read_text(encoding="utf-8")
+
     try:
         fm = parse_frontmatter(skill_file)
     except ValueError as exc:
@@ -52,8 +61,10 @@ def validate_skill(skill_dir: Path) -> list[str]:
         errors.append("name length must be 1-64 characters")
     if not 1 <= len(description) <= 1024:
         errors.append("description length must be 1-1024 characters")
+    if DOCUMENT_TIMING_RULE not in text:
+        errors.append("missing canonical stage-document update timing rule")
 
-    line_count = len(skill_file.read_text(encoding="utf-8").splitlines())
+    line_count = len(text.splitlines())
     if line_count > 500:
         errors.append(f"SKILL.md has {line_count} lines; recommended maximum is 500")
 
