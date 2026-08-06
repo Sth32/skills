@@ -52,7 +52,8 @@ docs/requirements/<feature>/
 ├── 05-框架实现方案.md
 ├── 06-完整实现方案.md
 ├── <主题名>-客户端对接文档.md（独立对接阶段，按需）
-└── 07-交叉评审.md
+├── 07-交叉评审.md
+└── record.jsonl（append-only 审计元数据）
 ```
 
 **每个阶段最多维护一份权威过程文档。** 不得为了人工执行、调查、验证、移交、总结或多 Agent 分工而额外创建清单、报告、摘要或子文档；这些内容应压缩到本阶段唯一文档的对应事项附近。代码、配置源、Excel、测试、生成物、diff 和日志属于实际产物或证据，不计作过程文档。
@@ -66,6 +67,35 @@ docs/requirements/<feature>/
 ```text
 docs/features/<feature>.md
 ```
+
+## 文档变更记录
+
+每个文档目录维护一个 append-only 的 `record.jsonl`，用于把实际失误、修正原因和验证结果反馈给 skill 开发者。它是审计元数据，不是第二份阶段文档，因此不违反“一个阶段一份权威文档”。
+
+**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。写入只能使用单次 append，禁止为了记录而读取、重写或总结历史全文。记录至少包含时间、skill、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**
+
+推荐使用：
+
+```bash
+python scripts/document_record.py append --record docs/requirements/<feature>/record.jsonl \
+  --skill game-spec --runtime codex-cli --model gpt-5.6 --reasoning-effort high \
+  --action update --document docs/requirements/<feature>/01-原始需求.md \
+  --trigger user_feedback --problem "同一规则重复出现" \
+  --root-cause "固定分类标题拆散同一问题" \
+  --change "合并规则并删除重复内容" \
+  --validation-status passed --validation "语义去重检查通过" \
+  --outcome success --improvement-target eval \
+  --prevention "增加重复事实回归场景"
+```
+
+查询时禁止全文读取。只允许有限尾部查询或流式聚合：
+
+```bash
+python scripts/document_record.py query --record <path>/record.jsonl --tail 20 --skill game-spec
+python scripts/document_record.py stats --record <path>/record.jsonl
+```
+
+记录的目标不是保存操作流水，而是形成可执行反馈：重复出现的问题应转化为 skill 硬规则、模板约束、静态检查或 eval 回归场景。
 
 ## 文档更新时序
 
@@ -111,7 +141,7 @@ npx skills@latest add Sth32/skills
 python scripts/validate_skills.py
 ```
 
-验证器会要求每个 `SKILL.md` 包含统一的“文档更新时序硬限制”，防止后续维护时某个阶段退回到延迟更新或静默修改上游文档。
+验证器会要求每个 `SKILL.md` 同时包含统一的“文档更新时序硬限制”和“文档变更记录硬限制”，防止后续维护时退回到延迟更新、静默修改上游文档或无反馈记录。
 
 `evals/` 中包含每个技能的行为测试场景，用于检查需求丢失、越界提问、危险占位、无证据完成、对接合同缺失、review 锚定和文档过度细化等失效模式。
 

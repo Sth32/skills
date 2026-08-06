@@ -19,6 +19,15 @@ DOCUMENT_TIMING_RULE = (
 )
 
 
+DOCUMENT_RECORD_RULE = (
+    "**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。写入只能使用单次 append，禁止为了记录而读取、重写或总结历史全文。记录至少包含时间、skill、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**"
+)
+REQUIRED_DOCUMENT_RECORD_FILES = (
+    "scripts/document_record.py",
+    "docs/skill-development/document-change-record.md",
+    "evals/document-recording.md",
+)
+
 def parse_frontmatter(path: Path) -> dict[str, str]:
     text = path.read_text(encoding="utf-8")
     if not text.startswith("---\n"):
@@ -63,6 +72,8 @@ def validate_skill(skill_dir: Path) -> list[str]:
         errors.append("description length must be 1-1024 characters")
     if DOCUMENT_TIMING_RULE not in text:
         errors.append("missing canonical stage-document update timing rule")
+    if DOCUMENT_RECORD_RULE not in text:
+        errors.append("missing canonical document change record rule")
 
     line_count = len(text.splitlines())
     if line_count > 500:
@@ -73,6 +84,10 @@ def validate_skill(skill_dir: Path) -> list[str]:
 
 def main() -> int:
     failed = False
+    for relative_path in REQUIRED_DOCUMENT_RECORD_FILES:
+        if not (ROOT / relative_path).is_file():
+            failed = True
+            print(f"FAIL missing required file: {relative_path}")
     for skill_dir in sorted(path for path in SKILLS_DIR.iterdir() if path.is_dir()):
         errors = validate_skill(skill_dir)
         if errors:

@@ -2,7 +2,7 @@
 name: game-implement
 description: Use when a game feature already has an approved runnable implementation skeleton and needs its remaining product behavior, edge cases, failure handling, compatibility, tests, and operational details completed without casually redesigning the established framework.
 metadata:
-  version: "0.1.2"
+  version: "0.1.3"
 ---
 
 # 完成游戏功能实现
@@ -16,6 +16,8 @@ metadata:
 **单文档硬限制：本阶段只能维护 `06-完整实现方案.md` 一份过程文档。** 不得另建需求矩阵、实施计划、测试报告、验证清单、上线说明、风险清单或完成总结。代码、测试、迁移、diff 和运行日志属于实际产物或证据，不算过程文档；当前结论必须回写主文档。
 
 **文档更新时序硬限制：任何新事实、确认、执行结果或验证结果只要改变本阶段内容，必须在同一轮立即原位更新本阶段唯一文档，并明确告知用户已更新的文件路径；不得等到阶段结束、批次结束或用户再次提醒。发现结论会改变更早阶段文档时，必须主动说明受影响文档和拟修改内容，先获得用户确认，再更新上游文档；未确认前不得静默改写。**
+
+**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。写入只能使用单次 append，禁止为了记录而读取、重写或总结历史全文。记录至少包含时间、skill、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**
 
 ## 前置条件与产物
 
