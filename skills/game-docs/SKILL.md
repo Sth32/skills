@@ -2,7 +2,7 @@
 name: game-docs
 description: Use when implemented game-server code must be distilled into a concise, durable authority document covering module responsibility, stable rules, data ownership, persistence, synchronization, and cross-module contracts without recording configurable values, implementation history, or task status.
 metadata:
-  version: "0.2.3"
+  version: "0.2.4"
 ---
 
 # 游戏模块权威文档
@@ -23,7 +23,7 @@ metadata:
 
 **文档更新时序硬限制：任何新事实、确认、执行结果或验证结果只要改变本阶段内容，必须在同一轮立即原位更新本阶段唯一文档，并明确告知用户已更新的文件路径；不得等到阶段结束、批次结束或用户再次提醒。发现结论会改变更早阶段文档时，必须主动说明受影响文档和拟修改内容，先获得用户确认，再更新上游文档；未确认前不得静默改写。**
 
-**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。写入只能使用单次 append，禁止为了记录而读取、重写或总结历史全文。记录至少包含时间、skill、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**
+**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。写入必须调用本 skill 自带的 `scripts/document_record.py append`；该脚本使用 UTF-8（无 BOM）字节单次追加，并在追加前静默校验已有文件仍是 UTF-8 JSONL。禁止使用 `>`、`>>`、`echo`、PowerShell `Add-Content`/`Set-Content`/`Out-File` 或通用文本写入 API 直接修改 `record.jsonl`，脚本失败时也不得降级绕过；找不到脚本、现有文件编码异常或追加失败时，必须明确告知用户并停止记录写入。记录至少包含时间、skill、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**
 
 文档描述当前生效的系统事实，不是代码导读、实现复盘、评审报告、排查记录或任务清单。
 

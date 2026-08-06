@@ -72,15 +72,15 @@ docs/features/<feature>.md
 
 每个文档目录维护一个 append-only 的 `record.jsonl`，用于把实际失误、修正原因和验证结果反馈给 skill 开发者。它是审计元数据，不是第二份阶段文档，因此不违反“一个阶段一份权威文档”。
 
-**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。写入只能使用单次 append，禁止为了记录而读取、重写或总结历史全文。记录至少包含时间、skill、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**
+**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。写入必须调用本 skill 自带的 `scripts/document_record.py append`；该脚本使用 UTF-8（无 BOM）字节单次追加，并在追加前静默校验已有文件仍是 UTF-8 JSONL。禁止使用 `>`、`>>`、`echo`、PowerShell `Add-Content`/`Set-Content`/`Out-File` 或通用文本写入 API 直接修改 `record.jsonl`，脚本失败时也不得降级绕过；找不到脚本、现有文件编码异常或追加失败时，必须明确告知用户并停止记录写入。记录至少包含时间、skill、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**
 
-推荐使用：
+每个 skill 目录都自带同一份 UTF-8 写入器。即使只复制单个 `skills/<skill-name>/` 目录，也必须使用该 skill 内的脚本，不得退回 Shell 追加：
 
 ```bash
-python scripts/document_record.py append --record docs/requirements/<feature>/record.jsonl \
+python <skill-root>/scripts/document_record.py append --record docs/requirements/<feature>/record.jsonl \
   --skill game-spec --runtime codex-cli --model gpt-5.6 --reasoning-effort high \
   --action update --document docs/requirements/<feature>/01-原始需求.md \
-  --trigger user_feedback --problem "同一规则重复出现" \
+  --trigger user_feedback --problem "预期同一规则只出现一次，实际在多个章节重复" \
   --root-cause "固定分类标题拆散同一问题" \
   --change "合并规则并删除重复内容" \
   --validation-status passed --validation "语义去重检查通过" \
@@ -91,11 +91,14 @@ python scripts/document_record.py append --record docs/requirements/<feature>/re
 查询时禁止全文读取。只允许有限尾部查询或流式聚合：
 
 ```bash
-python scripts/document_record.py query --record <path>/record.jsonl --tail 20 --skill game-spec
-python scripts/document_record.py stats --record <path>/record.jsonl
+python <skill-root>/scripts/document_record.py check --record <path>/record.jsonl
+python <skill-root>/scripts/document_record.py query --record <path>/record.jsonl --tail 20 --skill game-spec
+python <skill-root>/scripts/document_record.py stats --record <path>/record.jsonl
 ```
 
-记录的目标不是保存操作流水，而是形成可执行反馈：重复出现的问题应转化为 skill 硬规则、模板约束、静态检查或 eval 回归场景。
+`append` 会在进程内部流式校验已有文件，但不会把历史内容返回给 Agent。发现旧文件不是 UTF-8 JSONL 时必须停止追加并报告，不能继续制造混合编码；历史修复应作为一次显式迁移处理。
+
+记录的目标不是保存操作流水，而是形成可执行反馈。当前暂不收紧记录触发范围；`problem` 应尽量写清预期与实际差异，`validation.evidence` 保存修复后的最小验证证据，`improvement.prevention` 写防复发机制而不是项目待办。
 
 ## 文档更新时序
 
@@ -141,7 +144,7 @@ npx skills@latest add Sth32/skills
 python scripts/validate_skills.py
 ```
 
-验证器会要求每个 `SKILL.md` 同时包含统一的“文档更新时序硬限制”和“文档变更记录硬限制”，防止后续维护时退回到延迟更新、静默修改上游文档或无反馈记录。
+验证器会要求每个 `SKILL.md` 包含统一的文档更新与记录硬限制，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致，防止后续维护时退回到延迟更新、静默修改上游文档、Shell 直接追加或编码漂移。
 
 `evals/` 中包含每个技能的行为测试场景，用于检查需求丢失、越界提问、危险占位、无证据完成、对接合同缺失、review 锚定和文档过度细化等失效模式。
 
