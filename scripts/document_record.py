@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Append and inspect bounded document-change records without loading the log into context."""
+"""Append and inspect bounded UTF-8 document-change records."""
 
 from __future__ import annotations
 
@@ -62,8 +62,40 @@ def normalized_documents(values: Iterable[str]) -> list[str]:
     return result
 
 
+def decode_jsonl_line(path: Path, line_number: int, raw: bytes) -> dict[str, Any] | None:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"{path}:{line_number} is not UTF-8; repair the record before continuing"
+        ) from exc
+
+    text = text.strip()
+    if not text:
+        return None
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path}:{line_number} is not valid JSON: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValueError(f"{path}:{line_number} must contain one JSON object")
+    return value
+
+
+def validate_existing_record(path: Path) -> None:
+    """Validate internally without returning historical content to the Agent."""
+    if not path.exists():
+        return
+    if not path.is_file():
+        raise ValueError(f"record path is not a file: {path}")
+    with path.open("rb") as handle:
+        for line_number, raw in enumerate(handle, start=1):
+            decode_jsonl_line(path, line_number, raw)
+
+
 def append_single_write(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    validate_existing_record(path)
     raw = (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
     flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
     if hasattr(os, "O_BINARY"):
@@ -113,20 +145,16 @@ def build_entry(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def iter_entries(path: Path) -> Iterable[dict[str, Any]]:
-    with path.open("r", encoding="utf-8") as handle:
+    with path.open("rb") as handle:
         for line_number, raw in enumerate(handle, start=1):
-            raw = raw.strip()
-            if not raw:
+            if not raw.strip():
                 continue
             try:
-                value = json.loads(raw)
-            except json.JSONDecodeError as exc:
-                print(
-                    f"warning: skipped invalid JSON at {path}:{line_number}: {exc}",
-                    file=sys.stderr,
-                )
+                value = decode_jsonl_line(path, line_number, raw)
+            except ValueError as exc:
+                print(f"warning: skipped invalid record: {exc}", file=sys.stderr)
                 continue
-            if isinstance(value, dict):
+            if value is not None:
                 yield value
 
 
@@ -155,8 +183,26 @@ def command_append(args: argparse.Namespace) -> int:
         append_single_write(Path(args.record), entry)
     except (OSError, ValueError) as exc:
         print(f"record append failed: {exc}", file=sys.stderr)
+        print(
+            "do not fall back to shell redirection or PowerShell text commands",
+            file=sys.stderr,
+        )
         return 1
     print(json.dumps(entry, ensure_ascii=False))
+    return 0
+
+
+def command_check(args: argparse.Namespace) -> int:
+    path = Path(args.record)
+    if not path.is_file():
+        print(f"record file not found: {path}", file=sys.stderr)
+        return 1
+    try:
+        validate_existing_record(path)
+    except (OSError, ValueError) as exc:
+        print(f"record check failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"valid UTF-8 JSONL: {path}")
     return 0
 
 
@@ -224,11 +270,11 @@ def add_filters(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Append or inspect bounded JSONL document-change records."
+        description="Append or inspect bounded UTF-8 JSONL document-change records."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    append_parser = subparsers.add_parser("append", help="append exactly one JSONL record")
+    append_parser = subparsers.add_parser("append", help="append exactly one UTF-8 JSONL record")
     append_parser.add_argument("--record", required=True)
     append_parser.add_argument("--skill", required=True)
     append_parser.add_argument("--runtime", default=UNKNOWN)
@@ -251,6 +297,12 @@ def build_parser() -> argparse.ArgumentParser:
     append_parser.add_argument("--prevention", default="")
     append_parser.add_argument("--commit", default="")
     append_parser.set_defaults(func=command_append)
+
+    check_parser = subparsers.add_parser(
+        "check", help="validate that an existing record is UTF-8 JSONL"
+    )
+    check_parser.add_argument("--record", required=True)
+    check_parser.set_defaults(func=command_check)
 
     query_parser = subparsers.add_parser(
         "query", help="print only the latest bounded matching records"
