@@ -6,6 +6,7 @@ on:
     branches:
       - main
     paths:
+      - .github/workflows/apply-document-record-policy.yml
       - scripts/apply_document_record_policy.py
       - scripts/document_record.py
 
