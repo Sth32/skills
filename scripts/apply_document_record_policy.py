@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply the canonical document-change recording policy across this repository."""
+"""Apply canonical stage-document policies across this repository."""
 
 from __future__ import annotations
 
@@ -15,6 +15,21 @@ VALIDATOR = ROOT / "scripts" / "validate_skills.py"
 CANONICAL_WRITER = ROOT / "scripts" / "document_record.py"
 BUNDLED_WRITER_RELATIVE = Path("scripts/document_record.py")
 
+DOCUMENT_TIMING_RULE = (
+    "**文档更新时序硬限制：任何新事实、确认、执行结果或验证结果只要改变本阶段内容，"
+    "必须在同一轮立即原位更新本阶段唯一文档，并明确告知用户已更新的文件路径；"
+    "不得等到阶段结束、批次结束或用户再次提醒。发现结论会改变更早阶段文档时，"
+    "必须主动说明受影响文档和拟修改内容，先获得用户确认，再更新上游文档；"
+    "未确认前不得静默改写。**"
+)
+
+DOCUMENT_CONSISTENCY_RULE = (
+    "**阶段完成一致性硬限制：在宣布本阶段完成、确认或移交前，必须对本阶段权威文档做一次一致性收敛。"
+    "同一事项不得同时保留互斥的当前状态、数值、操作要求或验证结论；发现冲突时，必须依据最新用户确认、"
+    "实际源、代码或配置、生成物以及验证证据判定唯一当前事实并原位改写，删除被覆盖、错误、过时或仅用于过程追踪的内容。"
+    "若证据不足无法判定，则该事项保持未完成或阻塞，只保留唯一待确认点，不得以“已完成”结束阶段。**"
+)
+
 DOCUMENT_RECORD_RULE = (
     "**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 "
     "`record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。"
@@ -26,10 +41,11 @@ DOCUMENT_RECORD_RULE = (
 )
 
 TIMING_RULE_RE = re.compile(r"(\*\*文档更新时序硬限制：.*?\*\*)", re.DOTALL)
+CONSISTENCY_RULE_RE = re.compile(r"\*\*阶段完成一致性硬限制：.*?\*\*", re.DOTALL)
 RECORD_RULE_RE = re.compile(r"\*\*文档变更记录硬限制：.*?\*\*", re.DOTALL)
 VERSION_RE = re.compile(r'(\n\s*version:\s*")(\d+)\.(\d+)\.(\d+)("\s*\n)')
-VALIDATOR_RECORD_RULE_RE = re.compile(
-    r"DOCUMENT_RECORD_RULE = \(\n.*?\n\)\nREQUIRED_DOCUMENT_RECORD_FILES =",
+VALIDATOR_RULE_BLOCK_RE = re.compile(
+    r"DOCUMENT_TIMING_RULE = \(\n.*?\n\)\n+DOCUMENT_RECORD_RULE = \(\n.*?\n\)\nREQUIRED_DOCUMENT_RECORD_FILES =",
     re.DOTALL,
 )
 
@@ -67,6 +83,14 @@ python <skill-root>/scripts/document_record.py stats --record <path>/record.json
 
 """
 
+README_CONSISTENCY_SECTION = f"""## 阶段完成一致性收敛
+
+{DOCUMENT_CONSISTENCY_RULE}
+
+阶段文档承担的是“当前真相”，不是过程日志。历史尝试、旧状态和被新证据推翻的判断依赖 Git、diff、日志或 `record.jsonl` 追溯；正文只保留会影响后续决策和执行的唯一当前事实。
+
+"""
+
 
 def bump_patch_version(text: str) -> str:
     match = VERSION_RE.search(text)
@@ -78,16 +102,29 @@ def bump_patch_version(text: str) -> str:
 
 
 def patch_skill(text: str, path: Path) -> str:
-    if DOCUMENT_RECORD_RULE in text:
-        return text
-    if RECORD_RULE_RE.search(text):
-        text = RECORD_RULE_RE.sub(DOCUMENT_RECORD_RULE, text, count=1)
-    else:
-        match = TIMING_RULE_RE.search(text)
-        if not match:
-            raise ValueError(f"{path}: missing document timing rule anchor")
-        text = text[: match.end()] + "\n\n" + DOCUMENT_RECORD_RULE + text[match.end() :]
-    return bump_patch_version(text)
+    changed = False
+
+    if DOCUMENT_CONSISTENCY_RULE not in text:
+        if CONSISTENCY_RULE_RE.search(text):
+            text = CONSISTENCY_RULE_RE.sub(DOCUMENT_CONSISTENCY_RULE, text, count=1)
+        else:
+            timing = TIMING_RULE_RE.search(text)
+            if not timing:
+                raise ValueError(f"{path}: missing document timing rule anchor")
+            text = text[: timing.end()] + "\n\n" + DOCUMENT_CONSISTENCY_RULE + text[timing.end() :]
+        changed = True
+
+    if DOCUMENT_RECORD_RULE not in text:
+        if RECORD_RULE_RE.search(text):
+            text = RECORD_RULE_RE.sub(DOCUMENT_RECORD_RULE, text, count=1)
+        else:
+            consistency = CONSISTENCY_RULE_RE.search(text)
+            if not consistency:
+                raise ValueError(f"{path}: missing document consistency rule anchor")
+            text = text[: consistency.end()] + "\n\n" + DOCUMENT_RECORD_RULE + text[consistency.end() :]
+        changed = True
+
+    return bump_patch_version(text) if changed else text
 
 
 def patch_readme(text: str) -> str:
@@ -105,22 +142,31 @@ def patch_readme(text: str) -> str:
             raise ValueError("README: process-document tree anchor not found")
         text = text.replace(old_tree, new_tree, 1)
 
-    section_re = re.compile(r"## 文档变更记录\n.*?(?=## 文档更新时序\n)", re.DOTALL)
-    if section_re.search(text):
-        text = section_re.sub(README_RECORD_SECTION, text, count=1)
+    record_section_re = re.compile(r"## 文档变更记录\n.*?(?=## 文档更新时序\n)", re.DOTALL)
+    if record_section_re.search(text):
+        text = record_section_re.sub(README_RECORD_SECTION, text, count=1)
     else:
         anchor = "## 文档更新时序\n"
         if anchor not in text:
             raise ValueError("README: document timing section anchor not found")
         text = text.replace(anchor, README_RECORD_SECTION + anchor, 1)
 
+    consistency_section_re = re.compile(r"## 阶段完成一致性收敛\n.*?(?=## 设计原则\n)", re.DOTALL)
+    if consistency_section_re.search(text):
+        text = consistency_section_re.sub(README_CONSISTENCY_SECTION, text, count=1)
+    else:
+        anchor = "## 设计原则\n"
+        if anchor not in text:
+            raise ValueError("README: design-principles anchor not found")
+        text = text.replace(anchor, README_CONSISTENCY_SECTION + anchor, 1)
+
     old_validation = (
-        "验证器会要求每个 `SKILL.md` 同时包含统一的“文档更新时序硬限制”和“文档变更记录硬限制”，"
-        "防止后续维护时退回到延迟更新、静默修改上游文档或无反馈记录。"
-    )
-    new_validation = (
         "验证器会要求每个 `SKILL.md` 包含统一的文档更新与记录硬限制，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致，"
         "防止后续维护时退回到延迟更新、静默修改上游文档、Shell 直接追加或编码漂移。"
+    )
+    new_validation = (
+        "验证器会要求每个 `SKILL.md` 包含统一的文档更新、阶段完成一致性与记录硬限制，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致，"
+        "防止后续维护时退回到延迟更新、带矛盾状态完成阶段、静默修改上游文档、Shell 直接追加或编码漂移。"
     )
     if old_validation in text:
         text = text.replace(old_validation, new_validation, 1)
@@ -130,20 +176,41 @@ def patch_readme(text: str) -> str:
     return text
 
 
-def validator_constant() -> str:
-    escaped_parts = []
-    remaining = DOCUMENT_RECORD_RULE
+def validator_constant(name: str, value: str) -> str:
+    escaped_parts: list[str] = []
+    remaining = value
     while remaining:
         part, remaining = remaining[:100], remaining[100:]
-        escaped_parts.append(f'    "{part.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))}"')
-    return "DOCUMENT_RECORD_RULE = (\n" + "\n".join(escaped_parts) + "\n)\nREQUIRED_DOCUMENT_RECORD_FILES ="
+        escaped = part.replace("\\", "\\\\").replace('"', '\\"')
+        escaped_parts.append(f'    "{escaped}"')
+    return f"{name} = (\n" + "\n".join(escaped_parts) + "\n)"
 
 
 def patch_validator(text: str) -> str:
-    replacement = validator_constant()
-    if not VALIDATOR_RECORD_RULE_RE.search(text):
-        raise ValueError("validator: document-record rule block not found")
-    text = VALIDATOR_RECORD_RULE_RE.sub(replacement, text, count=1)
+    rule_block = (
+        validator_constant("DOCUMENT_TIMING_RULE", DOCUMENT_TIMING_RULE)
+        + "\n\n"
+        + validator_constant("DOCUMENT_CONSISTENCY_RULE", DOCUMENT_CONSISTENCY_RULE)
+        + "\n\n"
+        + validator_constant("DOCUMENT_RECORD_RULE", DOCUMENT_RECORD_RULE)
+        + "\nREQUIRED_DOCUMENT_RECORD_FILES ="
+    )
+    if not VALIDATOR_RULE_BLOCK_RE.search(text):
+        raise ValueError("validator: canonical rule block not found")
+    text = VALIDATOR_RULE_BLOCK_RE.sub(rule_block, text, count=1)
+
+    timing_check = (
+        '    if DOCUMENT_TIMING_RULE not in text:\n'
+        '        errors.append("missing canonical stage-document update timing rule")\n'
+    )
+    consistency_check = (
+        '    if DOCUMENT_CONSISTENCY_RULE not in text:\n'
+        '        errors.append("missing canonical stage-completion consistency rule")\n'
+    )
+    if consistency_check not in text:
+        if timing_check not in text:
+            raise ValueError("validator: timing-rule check anchor not found")
+        text = text.replace(timing_check, timing_check + consistency_check, 1)
 
     required_snippet = (
         '    bundled_writer = skill_dir / "scripts" / "document_record.py"\n'
@@ -224,7 +291,7 @@ def main() -> int:
             print(f"{prefix} {path.relative_to(ROOT)}")
         return 1 if args.check else 0
 
-    print("Document record policy is up to date.")
+    print("Stage document policy is up to date.")
     return 0
 
 
