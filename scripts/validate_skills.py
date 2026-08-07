@@ -12,13 +12,14 @@ SKILLS_DIR = ROOT / "skills"
 CANONICAL_RECORD_WRITER = ROOT / "scripts" / "document_record.py"
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 DOCUMENT_TIMING_RULE = (
-    "**文档更新时序硬限制：任何新事实、确认、执行结果或验证结果只要改变本阶段内容，"
-    "必须在同一轮立即原位更新本阶段唯一文档，并明确告知用户已更新的文件路径；"
-    "不得等到阶段结束、批次结束或用户再次提醒。发现结论会改变更早阶段文档时，"
-    "必须主动说明受影响文档和拟修改内容，先获得用户确认，再更新上游文档；"
-    "未确认前不得静默改写。**"
+    "**文档更新时序硬限制：任何新事实、确认、执行结果或验证结果只要改变本阶段内容，必须在同一轮立即原位更新本阶段唯一文档，并明确告知用户已更新的文件路径；不得等到阶段结束、批次结束或用户再次提醒。发现结"
+    "论会改变更早阶段文档时，必须主动说明受影响文档和拟修改内容，先获得用户确认，再更新上游文档；未确认前不得静默改写。**"
 )
 
+DOCUMENT_CONSISTENCY_RULE = (
+    "**阶段完成一致性硬限制：在宣布本阶段完成、确认或移交前，必须对本阶段权威文档做一次一致性收敛。同一事项不得同时保留互斥的当前状态、数值、操作要求或验证结论；发现冲突时，必须依据最新用户确认、实际源、"
+    "代码或配置、生成物以及验证证据判定唯一当前事实并原位改写，删除被覆盖、错误、过时或仅用于过程追踪的内容。若证据不足无法判定，则该事项保持未完成或阻塞，只保留唯一待确认点，不得以“已完成”结束阶段。**"
+)
 
 DOCUMENT_RECORD_RULE = (
     "**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶"
@@ -78,6 +79,8 @@ def validate_skill(skill_dir: Path) -> list[str]:
         errors.append("description length must be 1-1024 characters")
     if DOCUMENT_TIMING_RULE not in text:
         errors.append("missing canonical stage-document update timing rule")
+    if DOCUMENT_CONSISTENCY_RULE not in text:
+        errors.append("missing canonical stage-completion consistency rule")
     if DOCUMENT_RECORD_RULE not in text:
         errors.append("missing canonical document change record rule")
     bundled_writer = skill_dir / "scripts" / "document_record.py"
