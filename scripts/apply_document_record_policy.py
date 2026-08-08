@@ -49,13 +49,13 @@ CONSISTENCY_RULE_RE = re.compile(r"\*\*阶段完成一致性硬限制：.*?\*\*"
 RECORD_RULE_RE = re.compile(r"\*\*文档变更记录硬限制：.*?\*\*", re.DOTALL)
 VERSION_RE = re.compile(r'(\n\s*version:\s*")(\d+)\.(\d+)\.(\d+)("\s*\n)')
 VALIDATOR_RULE_BLOCK_RE = re.compile(
-    r"DOCUMENT_TIMING_RULE = \(\n.*?\n\)\n+DOCUMENT_RECORD_RULE = \(\n.*?\n\)\nREQUIRED_DOCUMENT_RECORD_FILES =",
+    r"DOCUMENT_TIMING_RULE = \(\n.*?\n\)\n+DOCUMENT_CONSISTENCY_RULE = \(\n.*?\n\)\n+DOCUMENT_RECORD_RULE = \(\n.*?\n\)",
     re.DOTALL,
 )
 
 README_RECORD_SECTION = f"""## 文档变更记录
 
-每个文档目录维护一个 append-only 的 `record.jsonl`，用于把实际失误、修正原因和验证结果反馈给 skill 开发者。它是审计元数据，不是第二份阶段文档，因此不违反“一个阶段一份权威文档”。
+每个过程文档目录维护一个 append-only 的 `record.jsonl`，用于把实际失误、修正原因和验证结果反馈给 skill 开发者。它是审计元数据，不是第二份阶段文档。分支工作流中的 `00` 和各 `Uxx` 阶段文档同样遵守记录规则。
 
 {DOCUMENT_RECORD_RULE}
 
@@ -91,7 +91,25 @@ README_CONSISTENCY_SECTION = f"""## 阶段完成一致性收敛
 
 {DOCUMENT_CONSISTENCY_RULE}
 
-阶段文档承担的是“当前真相”，不是过程日志。历史尝试、旧状态和被新证据推翻的判断依赖 Git、diff、日志或 `record.jsonl` 追溯；正文只保留会影响后续决策和执行的唯一当前事实。
+阶段文档承担的是“当前真相”，不是过程日志。历史尝试、旧状态和被新证据推翻的判断依赖 Git、diff、日志或 `record.jsonl` 追溯；正文只保留会影响后续决策和执行的唯一当前事实。`00` 只承担拓扑和路由，不成为第二份事实汇总。
+
+## 阶段切换门禁
+
+**阶段切换门禁硬限制：阶段文档顶部“状态”是阶段状态的唯一权威来源，聊天中的“完成”“可以进入下一阶段”不构成阶段完成。结束本阶段时，必须先满足本阶段完成/收敛条件，再在同一轮把顶部状态写为本阶段模板定义的可移交终态，同步最后更新时间、未解决计数、当前步骤等受影响元信息，并重新读取文档确认终态已经落盘；在这些动作完成前，不得宣称本阶段完成、移交或下一阶段可以开始。开始或恢复一个按工作流顺序进入的下游阶段时，在创建或修改本阶段文档、配置或代码之前，必须读取本 skill 要求的上游阶段文档顶部状态；任一实际前置上游不是其正常可移交终态时，必须明确指出具体文件与当前状态并停止正常推进，返回对应上游闭环，不得用聊天记录、记忆或推断覆盖文档状态，也不得静默替上游补成已完成。若本 skill 明确允许独立、提前或并行执行，只检查它声明的实际前置；用户在看到状态警告后明确要求带未闭环上游并行推进时，只能进行不依赖未决上游结论的安全工作，并在当前阶段文档显式记录上游阻塞/例外，不得把这种例外描述成正常阶段切换。**
+
+正常可移交终态以各阶段模板为准。当前主流程为：
+
+| 阶段 | 权威文档 | 正常可移交终态 |
+|---|---|---|
+| 01 原始需求 | `01-原始需求.md` | `整理完成` |
+| 02 需求挖掘 | `02-需求挖掘.md` | `已收敛` |
+| 03 程序实现澄清 | `03-程序实现澄清.md` | `已收敛` |
+| 04 配置规划 | `04-配置规划.md` | `已完成` |
+| 05 框架实现 | `05-框架实现方案.md` | `骨架已完成` |
+| 06 完整实现 | `06-完整实现方案.md` | `已完成` |
+| 07 交叉评审 | `07-交叉评审.md` | `通过`；`有条件通过` 仅按已明确接受的条件继续 |
+
+顶部状态只表达**当前阶段自身**是否闭环。下游依赖必须留在事项内，例如配置阶段已经完成但仍有代码接入工作时，`04` 顶部应为 `已完成`，代码依赖写在对应配置事项中，而不是把阶段状态写成“待代码接入”。
 
 """
 
@@ -169,8 +187,8 @@ def patch_readme(text: str) -> str:
         "防止后续维护时退回到延迟更新、静默修改上游文档、Shell 直接追加或编码漂移。"
     )
     new_validation = (
-        "验证器会要求每个 `SKILL.md` 包含统一的文档更新、阶段完成一致性与记录硬限制，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致，"
-        "防止后续维护时退回到延迟更新、带矛盾状态完成阶段、遗漏 skill 版本、静默修改上游文档、Shell 直接追加或编码漂移。"
+        "验证器会要求每个 `SKILL.md` 包含统一的文档更新、阶段完成一致性与记录硬限制；对 `02`–`06` 和客户端对接技能额外检查分支工作流协议，"
+        "对 `game-review` 检查 07 汇合协议，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致。"
     )
     if old_validation in text:
         text = text.replace(old_validation, new_validation, 1)
@@ -204,7 +222,6 @@ def patch_validator(text: str) -> str:
         + validator_constant("DOCUMENT_CONSISTENCY_RULE", DOCUMENT_CONSISTENCY_RULE)
         + "\n\n"
         + validator_constant("DOCUMENT_RECORD_RULE", DOCUMENT_RECORD_RULE)
-        + "\nREQUIRED_DOCUMENT_RECORD_FILES ="
     )
     if not VALIDATOR_RULE_BLOCK_RE.search(text):
         raise ValueError("validator: canonical rule block not found")
