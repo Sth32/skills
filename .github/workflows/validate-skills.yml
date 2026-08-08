@@ -23,3 +23,5 @@ jobs:
         run: python scripts/validate_skills.py
       - name: Compile helper scripts
         run: python -m py_compile scripts/*.py
+      - name: Test versioned document records
+        run: python scripts/test_document_record.py
