@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import sys
 from pathlib import Path
@@ -49,69 +50,17 @@ CONSISTENCY_RULE_RE = re.compile(r"\*\*阶段完成一致性硬限制：.*?\*\*"
 RECORD_RULE_RE = re.compile(r"\*\*文档变更记录硬限制：.*?\*\*", re.DOTALL)
 VERSION_RE = re.compile(r'(\n\s*version:\s*")(\d+)\.(\d+)\.(\d+)("\s*\n)')
 VALIDATOR_RULE_BLOCK_RE = re.compile(
-    r"DOCUMENT_TIMING_RULE = \(\n.*?\n\)\n+DOCUMENT_CONSISTENCY_RULE = \(\n.*?\n\)\n+DOCUMENT_RECORD_RULE = \(\n.*?\n\)",
+    r"DOCUMENT_TIMING_RULE = \(\n.*?\n\)\n+"
+    r"DOCUMENT_CONSISTENCY_RULE = \(\n.*?\n\)\n+"
+    r"DOCUMENT_RECORD_RULE = \(\n.*?\n\)",
     re.DOTALL,
 )
 
-README_RECORD_SECTION = f"""## 文档变更记录
-
-每个过程文档目录维护一个 append-only 的 `record.jsonl`，用于把实际失误、修正原因和验证结果反馈给 skill 开发者。它是审计元数据，不是第二份阶段文档。分支工作流中的 `00` 和各 `Uxx` 阶段文档同样遵守记录规则。
-
-{DOCUMENT_RECORD_RULE}
-
-每个 skill 目录都自带同一份 UTF-8 写入器。即使只复制单个 `skills/<skill-name>/` 目录，也必须使用该 skill 内的脚本，不得退回 Shell 追加。写入器会从该 skill 自己的 `SKILL.md` 自动读取 `metadata.version`，调用者不传版本：
-
-```bash
-python <skill-root>/scripts/document_record.py append --record docs/requirements/<feature>/record.jsonl \\
-  --skill game-spec --runtime codex-cli --model gpt-5.6 --reasoning-effort high \\
-  --action update --document docs/requirements/<feature>/01-原始需求.md \\
-  --trigger user_feedback --problem "预期同一规则只出现一次，实际在多个章节重复" \\
-  --root-cause "固定分类标题拆散同一问题" \\
-  --change "合并规则并删除重复内容" \\
-  --validation-status passed --validation "语义去重检查通过" \\
-  --outcome success --improvement-target eval \\
-  --prevention "增加重复事实回归场景"
-```
-
-查询时禁止全文读取。只允许有限尾部查询或流式聚合。滚动评估优先显式指定版本，避免把不同 skill 版本混在一起：
-
-```bash
-python <skill-root>/scripts/document_record.py check --record <path>/record.jsonl
-python <skill-root>/scripts/document_record.py query --record <path>/record.jsonl --tail 20 --skill game-spec --skill-version 0.1.8
-python <skill-root>/scripts/document_record.py stats --record <path>/record.jsonl --skill game-spec
-```
-
-`append` 会在进程内部流式校验已有文件，但不会把历史内容返回给 Agent。发现旧文件不是 UTF-8 JSONL 时必须停止追加并报告，不能继续制造混合编码；历史修复应作为一次显式迁移处理。schema v1 历史记录没有 `skill_version` 时保持原样，在查询和统计中归为 `unknown`，不得根据时间或提交猜测回填。
-
-记录的目标不是保存操作流水，而是形成可执行反馈。当前暂不收紧记录触发范围；`problem` 应尽量写清预期与实际差异，`validation.evidence` 保存修复后的最小验证证据，`improvement.prevention` 写防复发机制而不是项目待办。
-
-"""
-
-README_CONSISTENCY_SECTION = f"""## 阶段完成一致性收敛
-
-{DOCUMENT_CONSISTENCY_RULE}
-
-阶段文档承担的是“当前真相”，不是过程日志。历史尝试、旧状态和被新证据推翻的判断依赖 Git、diff、日志或 `record.jsonl` 追溯；正文只保留会影响后续决策和执行的唯一当前事实。`00` 只承担拓扑和路由，不成为第二份事实汇总。
-
-## 阶段切换门禁
-
-**阶段切换门禁硬限制：阶段文档顶部“状态”是阶段状态的唯一权威来源，聊天中的“完成”“可以进入下一阶段”不构成阶段完成。结束本阶段时，必须先满足本阶段完成/收敛条件，再在同一轮把顶部状态写为本阶段模板定义的可移交终态，同步最后更新时间、未解决计数、当前步骤等受影响元信息，并重新读取文档确认终态已经落盘；在这些动作完成前，不得宣称本阶段完成、移交或下一阶段可以开始。开始或恢复一个按工作流顺序进入的下游阶段时，在创建或修改本阶段文档、配置或代码之前，必须读取本 skill 要求的上游阶段文档顶部状态；任一实际前置上游不是其正常可移交终态时，必须明确指出具体文件与当前状态并停止正常推进，返回对应上游闭环，不得用聊天记录、记忆或推断覆盖文档状态，也不得静默替上游补成已完成。若本 skill 明确允许独立、提前或并行执行，只检查它声明的实际前置；用户在看到状态警告后明确要求带未闭环上游并行推进时，只能进行不依赖未决上游结论的安全工作，并在当前阶段文档显式记录上游阻塞/例外，不得把这种例外描述成正常阶段切换。**
-
-正常可移交终态以各阶段模板为准。当前主流程为：
-
-| 阶段 | 权威文档 | 正常可移交终态 |
-|---|---|---|
-| 01 原始需求 | `01-原始需求.md` | `整理完成` |
-| 02 需求挖掘 | `02-需求挖掘.md` | `已收敛` |
-| 03 程序实现澄清 | `03-程序实现澄清.md` | `已收敛` |
-| 04 配置规划 | `04-配置规划.md` | `已完成` |
-| 05 框架实现 | `05-框架实现方案.md` | `骨架已完成` |
-| 06 完整实现 | `06-完整实现方案.md` | `已完成` |
-| 07 交叉评审 | `07-交叉评审.md` | `通过`；`有条件通过` 仅按已明确接受的条件继续 |
-
-顶部状态只表达**当前阶段自身**是否闭环。下游依赖必须留在事项内，例如配置阶段已经完成但仍有代码接入工作时，`04` 顶部应为 `已完成`，代码依赖写在对应配置事项中，而不是把阶段状态写成“待代码接入”。
-
-"""
+README_VALIDATOR_PARAGRAPH = (
+    "验证器会要求每个 `SKILL.md` 包含统一的文档更新、阶段完成一致性与记录硬限制；"
+    "对 `02`–`06` 和客户端对接技能额外检查分支工作流协议，对 `game-review` 检查 07 汇合协议，"
+    "并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致。"
+)
 
 
 def bump_patch_version(text: str) -> str:
@@ -149,58 +98,36 @@ def patch_skill(text: str, path: Path) -> str:
     return bump_patch_version(text) if changed else text
 
 
+def insert_rule_after_heading(text: str, heading: str, rule: str, label: str) -> str:
+    anchor = heading + "\n"
+    if anchor not in text:
+        raise ValueError(f"README: {label} section anchor not found")
+    return text.replace(anchor, anchor + "\n" + rule + "\n", 1)
+
+
 def patch_readme(text: str) -> str:
-    if "└── record.jsonl" not in text:
-        old_tree = (
-            "├── <主题名>-客户端对接文档.md（独立对接阶段，按需）\n"
-            "└── 07-交叉评审.md"
-        )
-        new_tree = (
-            "├── <主题名>-客户端对接文档.md（独立对接阶段，按需）\n"
-            "├── 07-交叉评审.md\n"
-            "└── record.jsonl（append-only 审计元数据）"
-        )
-        if old_tree not in text:
-            raise ValueError("README: process-document tree anchor not found")
-        text = text.replace(old_tree, new_tree, 1)
-
-    record_section_re = re.compile(r"## 文档变更记录\n.*?(?=## 文档更新时序\n)", re.DOTALL)
-    if record_section_re.search(text):
-        text = record_section_re.sub(README_RECORD_SECTION, text, count=1)
-    else:
-        anchor = "## 文档更新时序\n"
-        if anchor not in text:
-            raise ValueError("README: document timing section anchor not found")
-        text = text.replace(anchor, README_RECORD_SECTION + anchor, 1)
-
-    consistency_section_re = re.compile(r"## 阶段完成一致性收敛\n.*?(?=## 设计原则\n)", re.DOTALL)
-    if consistency_section_re.search(text):
-        text = consistency_section_re.sub(README_CONSISTENCY_SECTION, text, count=1)
-    else:
-        anchor = "## 设计原则\n"
-        if anchor not in text:
-            raise ValueError("README: design-principles anchor not found")
-        text = text.replace(anchor, README_CONSISTENCY_SECTION + anchor, 1)
-
-    old_validation = (
-        "验证器会要求每个 `SKILL.md` 包含统一的文档更新与记录硬限制，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致，"
-        "防止后续维护时退回到延迟更新、静默修改上游文档、Shell 直接追加或编码漂移。"
-    )
-    new_validation = (
-        "验证器会要求每个 `SKILL.md` 包含统一的文档更新、阶段完成一致性与记录硬限制；对 `02`–`06` 和客户端对接技能额外检查分支工作流协议，"
-        "对 `game-review` 检查 07 汇合协议，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致。"
-    )
-    if old_validation in text:
-        text = text.replace(old_validation, new_validation, 1)
-    elif new_validation not in text:
-        legacy_validation = (
-            "验证器会要求每个 `SKILL.md` 包含统一的文档更新、阶段完成一致性与记录硬限制，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致，"
-            "防止后续维护时退回到延迟更新、带矛盾状态完成阶段、静默修改上游文档、Shell 直接追加或编码漂移。"
-        )
-        if legacy_validation in text:
-            text = text.replace(legacy_validation, new_validation, 1)
+    # Keep README-specific branch workflow prose intact. This applicator owns only
+    # the canonical rules themselves and the validator summary marker.
+    if DOCUMENT_RECORD_RULE not in text:
+        if RECORD_RULE_RE.search(text):
+            text = RECORD_RULE_RE.sub(DOCUMENT_RECORD_RULE, text, count=1)
         else:
+            text = insert_rule_after_heading(text, "## 文档变更记录", DOCUMENT_RECORD_RULE, "document record")
+
+    if DOCUMENT_CONSISTENCY_RULE not in text:
+        if CONSISTENCY_RULE_RE.search(text):
+            text = CONSISTENCY_RULE_RE.sub(DOCUMENT_CONSISTENCY_RULE, text, count=1)
+        else:
+            text = insert_rule_after_heading(text, "## 阶段完成一致性收敛", DOCUMENT_CONSISTENCY_RULE, "consistency")
+
+    if README_VALIDATOR_PARAGRAPH not in text:
+        validation_re = re.compile(
+            r"验证器会要求每个 `SKILL\.md` 包含.*?(?=\n\n`evals/)",
+            re.DOTALL,
+        )
+        if not validation_re.search(text):
             raise ValueError("README: validator description anchor not found")
+        text = validation_re.sub(README_VALIDATOR_PARAGRAPH, text, count=1)
 
     return text
 
@@ -215,17 +142,47 @@ def validator_constant(name: str, value: str) -> str:
     return f"{name} = (\n" + "\n".join(escaped_parts) + "\n)"
 
 
+def read_string_constants(text: str, names: set[str]) -> dict[str, str]:
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as exc:
+        raise ValueError(f"validator: invalid Python syntax: {exc}") from exc
+
+    result: dict[str, str] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name) or target.id not in names:
+            continue
+        try:
+            value = ast.literal_eval(node.value)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"validator: {target.id} is not a literal string") from exc
+        if not isinstance(value, str):
+            raise ValueError(f"validator: {target.id} is not a string")
+        result[target.id] = value
+    return result
+
+
 def patch_validator(text: str) -> str:
-    rule_block = (
-        validator_constant("DOCUMENT_TIMING_RULE", DOCUMENT_TIMING_RULE)
-        + "\n\n"
-        + validator_constant("DOCUMENT_CONSISTENCY_RULE", DOCUMENT_CONSISTENCY_RULE)
-        + "\n\n"
-        + validator_constant("DOCUMENT_RECORD_RULE", DOCUMENT_RECORD_RULE)
-    )
-    if not VALIDATOR_RULE_BLOCK_RE.search(text):
-        raise ValueError("validator: canonical rule block not found")
-    text = VALIDATOR_RULE_BLOCK_RE.sub(rule_block, text, count=1)
+    expected = {
+        "DOCUMENT_TIMING_RULE": DOCUMENT_TIMING_RULE,
+        "DOCUMENT_CONSISTENCY_RULE": DOCUMENT_CONSISTENCY_RULE,
+        "DOCUMENT_RECORD_RULE": DOCUMENT_RECORD_RULE,
+    }
+    actual = read_string_constants(text, set(expected))
+    if actual != expected:
+        rule_block = (
+            validator_constant("DOCUMENT_TIMING_RULE", DOCUMENT_TIMING_RULE)
+            + "\n\n"
+            + validator_constant("DOCUMENT_CONSISTENCY_RULE", DOCUMENT_CONSISTENCY_RULE)
+            + "\n\n"
+            + validator_constant("DOCUMENT_RECORD_RULE", DOCUMENT_RECORD_RULE)
+        )
+        if not VALIDATOR_RULE_BLOCK_RE.search(text):
+            raise ValueError("validator: canonical rule block not found")
+        text = VALIDATOR_RULE_BLOCK_RE.sub(rule_block, text, count=1)
 
     timing_check = (
         '    if DOCUMENT_TIMING_RULE not in text:\n'

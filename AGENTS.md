@@ -16,6 +16,19 @@ For every Agent-originated repository change:
 
 A later successful run does not silently erase an earlier unexplained failure in the same change chain. Confirm that the failure was superseded by an identified fix or by an intentional generated follow-up commit whose final state is green.
 
+## Inherited Agent/bot commit attribution
+
+When an Agent takes over, corrects, completes, refactors, or otherwise materially changes work that was originally committed by another Agent or bot, the follow-up commit message must preserve that producer attribution.
+
+Use a concise suffix such as `by <producer>` in the commit subject, for example `Fix policy applicator for branched workflows (by codebuddy)`.
+
+- Attribute the actual producing Agent/bot, not merely the Git author identity, when automation used a human account or shared credential to create the original commit and the producer is known from reliable workflow context.
+- If multiple earlier producers materially contributed to the inherited work, name the relevant producer(s) concisely rather than erasing provenance.
+- Do not add `by ...` when the current Agent is only changing unrelated files nearby; attribution is required when the new commit is a correction, completion, refactor, or continuation of the inherited change itself.
+- Do not guess attribution. If the actual producer cannot be determined reliably, omit the suffix rather than attributing the work to the wrong identity.
+
+The attribution suffix records work provenance; it does not replace normal Git author/committer metadata or `Co-authored-by` trailers where those are otherwise appropriate.
+
 ## Failure monitoring
 
 When asked to monitor this repository, treat a newly failed GitHub Actions run as actionable maintenance evidence. Inspect the failed jobs/logs rather than forwarding only the GitHub failure notification. Clear maintenance failures may be repaired directly when the fix is unambiguous and verifiable; uncertain or policy-changing fixes require user involvement.
