@@ -22,10 +22,10 @@ When an Agent modifies work that was introduced by another Agent or bot, the cor
 
 This applies when the new commit fixes, completes, refactors, adapts, or otherwise materially changes an earlier Agent/bot-authored commit rather than being an unrelated change.
 
-Use the source commit author identifier in the commit message, preferably as a short suffix:
+Use a concise suffix:
 
 ```text
-<commit message> (by <source-author>)
+<commit message> (by <source-agent>)
 ```
 
 Examples:
@@ -37,10 +37,12 @@ Correct generated stage transition policy (by github-actions[bot])
 
 Rules:
 
-1. Use the actual source commit author/login when it can be determined from Git history; do not guess or normalize it to a different bot name.
-2. If one follow-up commit materially corrects work from multiple identifiable Agents/bots, include all relevant authors concisely, for example `(by bot-a, bot-b)`.
-3. Do not add a `by ...` suffix for unrelated work merely because another Agent committed nearby changes.
-4. Attribution does not transfer authorship of the corrective commit; it records whose prior work is being modified so repository history remains reviewable.
+1. Attribute the Agent/bot that actually produced the inherited work when that identity is known from Git metadata, automation context, or explicit task context.
+2. Some automation commits through a human account or shared credential. If the producing bot is known, use the bot identity rather than the credential/account name; do not misattribute automated work to the human account holder.
+3. If only the Git author is known and there is no reliable evidence of a different producing Agent, use that author/login rather than guessing.
+4. If one follow-up commit materially corrects work from multiple identifiable Agents/bots, include all relevant authors concisely, for example `(by bot-a, bot-b)`.
+5. Do not add a `by ...` suffix for unrelated work merely because another Agent committed nearby changes.
+6. Attribution does not transfer authorship of the corrective commit; it records whose prior work is being modified so repository history remains reviewable.
 
 ## Failure monitoring
 
