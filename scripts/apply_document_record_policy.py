@@ -34,9 +34,13 @@ DOCUMENT_RECORD_RULE = (
     "**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 "
     "`record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。"
     "写入必须调用本 skill 自带的 `scripts/document_record.py append`；该脚本使用 UTF-8（无 BOM）字节单次追加，并在追加前静默校验已有文件仍是 UTF-8 JSONL。"
+    "每条新记录必须包含实际 `skill_version`；版本由写入器从当前 skill 根目录 `SKILL.md` 的 `metadata.version` 自动读取，禁止由 Agent 手填、猜测或沿用历史值。"
+    "写入器无法读取版本、版本格式非法或 `--skill` 与当前 `SKILL.md` 名称不一致时，必须拒绝追加并明确报告；不得写 `unknown` 伪装新记录。"
+    "历史 schema v1 记录缺少版本时保留原样，查询和统计统一视为 `skill_version=unknown`，不得回填猜测版本。"
     "禁止使用 `>`、`>>`、`echo`、PowerShell `Add-Content`/`Set-Content`/`Out-File` 或通用文本写入 API 直接修改 `record.jsonl`，脚本失败时也不得降级绕过；"
-    "找不到脚本、现有文件编码异常或追加失败时，必须明确告知用户并停止记录写入。记录至少包含时间、skill、运行环境、模型、思考等级、动作、"
+    "找不到脚本、现有文件编码异常或追加失败时，必须明确告知用户并停止记录写入。记录至少包含时间、skill 及其实际版本、运行环境、模型、思考等级、动作、"
     "文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。"
+    "评估滚动更新的 skill 时必须按 `skill_version` 过滤或分组，不能把版本未知的旧记录或多个版本直接混为同一版本效果。"
     "禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**"
 )
 
@@ -55,7 +59,7 @@ README_RECORD_SECTION = f"""## 文档变更记录
 
 {DOCUMENT_RECORD_RULE}
 
-每个 skill 目录都自带同一份 UTF-8 写入器。即使只复制单个 `skills/<skill-name>/` 目录，也必须使用该 skill 内的脚本，不得退回 Shell 追加：
+每个 skill 目录都自带同一份 UTF-8 写入器。即使只复制单个 `skills/<skill-name>/` 目录，也必须使用该 skill 内的脚本，不得退回 Shell 追加。写入器会从该 skill 自己的 `SKILL.md` 自动读取 `metadata.version`，调用者不传版本：
 
 ```bash
 python <skill-root>/scripts/document_record.py append --record docs/requirements/<feature>/record.jsonl \\
@@ -69,15 +73,15 @@ python <skill-root>/scripts/document_record.py append --record docs/requirements
   --prevention "增加重复事实回归场景"
 ```
 
-查询时禁止全文读取。只允许有限尾部查询或流式聚合：
+查询时禁止全文读取。只允许有限尾部查询或流式聚合。滚动评估优先显式指定版本，避免把不同 skill 版本混在一起：
 
 ```bash
 python <skill-root>/scripts/document_record.py check --record <path>/record.jsonl
-python <skill-root>/scripts/document_record.py query --record <path>/record.jsonl --tail 20 --skill game-spec
-python <skill-root>/scripts/document_record.py stats --record <path>/record.jsonl
+python <skill-root>/scripts/document_record.py query --record <path>/record.jsonl --tail 20 --skill game-spec --skill-version 0.1.8
+python <skill-root>/scripts/document_record.py stats --record <path>/record.jsonl --skill game-spec
 ```
 
-`append` 会在进程内部流式校验已有文件，但不会把历史内容返回给 Agent。发现旧文件不是 UTF-8 JSONL 时必须停止追加并报告，不能继续制造混合编码；历史修复应作为一次显式迁移处理。
+`append` 会在进程内部流式校验已有文件，但不会把历史内容返回给 Agent。发现旧文件不是 UTF-8 JSONL 时必须停止追加并报告，不能继续制造混合编码；历史修复应作为一次显式迁移处理。schema v1 历史记录没有 `skill_version` 时保持原样，在查询和统计中归为 `unknown`，不得根据时间或提交猜测回填。
 
 记录的目标不是保存操作流水，而是形成可执行反馈。当前暂不收紧记录触发范围；`problem` 应尽量写清预期与实际差异，`validation.evidence` 保存修复后的最小验证证据，`improvement.prevention` 写防复发机制而不是项目待办。
 
@@ -166,12 +170,19 @@ def patch_readme(text: str) -> str:
     )
     new_validation = (
         "验证器会要求每个 `SKILL.md` 包含统一的文档更新、阶段完成一致性与记录硬限制，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致，"
-        "防止后续维护时退回到延迟更新、带矛盾状态完成阶段、静默修改上游文档、Shell 直接追加或编码漂移。"
+        "防止后续维护时退回到延迟更新、带矛盾状态完成阶段、遗漏 skill 版本、静默修改上游文档、Shell 直接追加或编码漂移。"
     )
     if old_validation in text:
         text = text.replace(old_validation, new_validation, 1)
     elif new_validation not in text:
-        raise ValueError("README: validator description anchor not found")
+        legacy_validation = (
+            "验证器会要求每个 `SKILL.md` 包含统一的文档更新、阶段完成一致性与记录硬限制，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致，"
+            "防止后续维护时退回到延迟更新、带矛盾状态完成阶段、静默修改上游文档、Shell 直接追加或编码漂移。"
+        )
+        if legacy_validation in text:
+            text = text.replace(legacy_validation, new_validation, 1)
+        else:
+            raise ValueError("README: validator description anchor not found")
 
     return text
 
