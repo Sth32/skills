@@ -16,33 +16,18 @@ For every Agent-originated repository change:
 
 A later successful run does not silently erase an earlier unexplained failure in the same change chain. Confirm that the failure was superseded by an identified fix or by an intentional generated follow-up commit whose final state is green.
 
-## Commit attribution for inherited Agent work
+## Inherited Agent/bot commit attribution
 
-When an Agent modifies work that was introduced by another Agent or bot, the corrective/follow-up commit must preserve that provenance in its commit message.
+When an Agent takes over, corrects, completes, refactors, or otherwise materially changes work that was originally committed by another Agent or bot, the follow-up commit message must preserve that producer attribution.
 
-This applies when the new commit fixes, completes, refactors, adapts, or otherwise materially changes an earlier Agent/bot-authored commit rather than being an unrelated change.
+Use a concise suffix such as `by <producer>` in the commit subject, for example `Fix policy applicator for branched workflows (by codebuddy)`.
 
-Use a concise suffix:
+- Attribute the actual producing Agent/bot, not merely the Git author identity, when automation used a human account or shared credential to create the original commit and the producer is known from reliable workflow context.
+- If multiple earlier producers materially contributed to the inherited work, name the relevant producer(s) concisely rather than erasing provenance.
+- Do not add `by ...` when the current Agent is only changing unrelated files nearby; attribution is required when the new commit is a correction, completion, refactor, or continuation of the inherited change itself.
+- Do not guess attribution. If the actual producer cannot be determined reliably, omit the suffix rather than attributing the work to the wrong identity.
 
-```text
-<commit message> (by <source-agent>)
-```
-
-Examples:
-
-```text
-Fix CI policy generator compatibility (by codebuddy)
-Correct generated stage transition policy (by github-actions[bot])
-```
-
-Rules:
-
-1. Attribute the Agent/bot that actually produced the inherited work when that identity is known from Git metadata, automation context, or explicit task context.
-2. Some automation commits through a human account or shared credential. If the producing bot is known, use the bot identity rather than the credential/account name; do not misattribute automated work to the human account holder.
-3. If only the Git author is known and there is no reliable evidence of a different producing Agent, use that author/login rather than guessing.
-4. If one follow-up commit materially corrects work from multiple identifiable Agents/bots, include all relevant authors concisely, for example `(by bot-a, bot-b)`.
-5. Do not add a `by ...` suffix for unrelated work merely because another Agent committed nearby changes.
-6. Attribution does not transfer authorship of the corrective commit; it records whose prior work is being modified so repository history remains reviewable.
+The attribution suffix records work provenance; it does not replace normal Git author/committer metadata or `Co-authored-by` trailers where those are otherwise appropriate.
 
 ## Failure monitoring
 
