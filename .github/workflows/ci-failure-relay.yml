@@ -1,0 +1,112 @@
+# ============================================================
+# ci-failure-relay.yml — CI 失败自动唤醒 CNB 打工人
+# 仓库：Sth32/skills
+# 触发：Validate skills 失败时（自动）
+# 防循环：打工人修复提交以 [ci-skip-notify] 开头 → 跳过
+# ============================================================
+name: CI failure relay
+
+on:
+  workflow_run:
+    workflows: ["Validate skills"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' && !contains(github.event.workflow_run.head_commit.message, '[ci-skip-notify]') }}
+    steps:
+      - name: 提取失败日志
+        id: logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_ID="${{ github.event.workflow_run.id }}"
+          JOB_ID=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}/jobs" \
+            --jq '[.jobs[] | select(.conclusion == "failure")][0].id' || echo "")
+          if [ -n "$JOB_ID" ] && [ "$JOB_ID" != "null" ]; then
+            LOG=$(gh api "repos/${{ github.repository }}/actions/jobs/${JOB_ID}/logs" 2>/dev/null | tail -80 || true)
+          else
+            LOG="(无法获取失败 job 日志)"
+          fi
+          # 截断到 6000 字符，JSON 转义后写入 output
+          LOG_JSON=$(printf '%s' "$LOG" | head -c 6000 | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))")
+          echo "run_id=${RUN_ID}" >> "$GITHUB_OUTPUT"
+          echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          echo "log=${LOG_JSON}" >> "$GITHUB_OUTPUT"
+
+      - name: 唤醒 CNB 打工人
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+          RUN_ID: ${{ steps.logs.outputs.run_id }}
+          SHA: ${{ steps.logs.outputs.sha }}
+          FAIL_LOG: ${{ steps.logs.outputs.log }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, urllib.request
+
+          task = f"""GitHub 仓库 Sth32/skills 的 CI 验证失败，请当场修复并推送。
+
+          【失败信息】
+          - 失败 run: {os.environ['RUN_ID']}
+          - head sha: {os.environ['SHA']}
+          - 失败日志摘要（尾部 80 行）:
+          {os.environ['FAIL_LOG']}
+
+          【操作步骤】
+          1. 克隆仓库（用 GITHUB_TOKEN 环境变量）:
+             git clone https://x-access-token:$GITHUB_TOKEN@github.com/Sth32/skills.git skills && cd skills
+          2. 本地复现失败（按日志定位对应命令，全部跑一遍确认）:
+             python3 scripts/apply_document_record_policy.py --check
+             python3 scripts/validate_skills.py
+             python3 -m py_compile scripts/*.py
+             python3 scripts/test_document_record.py
+          3. 修复根因。必须遵守仓库既有约定：
+             - 每个阶段最多一份权威文档，UTF-8 无 BOM
+             - record.jsonl 只能用 skill 自带 scripts/document_record.py 追加
+             - 不改与失败无关的内容，不做顺手重构
+          4. 提交并推送:
+             git add -A
+             git commit -m "[ci-skip-notify] fix(ci): <一句话根因和修复>"
+             git push origin main
+             （commit 消息必须以 [ci-skip-notify] 开头，否则 CI 失败会再次唤醒你造成死循环）
+          5. 推送后验证: gh run watch --exit-status --interval 10
+             （用 GITHUB_TOKEN 环境变量: export GH_TOKEN=$GITHUB_TOKEN）
+             失败则继续修，最多 3 轮。
+          6. 全部通过后，向钉钉群发汇报消息（必须做）:
+             环境变量 DINGTALK_WEBHOOK / DINGTALK_SECRET 已注入。
+             加签算法: timestamp=当前毫秒; string_to_sign=timestamp+"\\n"+DINGTALK_SECRET;
+             sign=base64(hmac_sha256(string_to_sign, DINGTALK_SECRET)) 并 URL 编码;
+             请求 URL = DINGTALK_WEBHOOK + "&timestamp=" + timestamp + "&sign=" + sign
+             用 msgtype=markdown，内容包含: 修复了什么、改了哪些文件、新 run 结果。
+          7. 修不动（3 轮仍红、或需要设计决策/大重构）→ 钉钉发"需要人工介入"通知并停手，不要乱改仓库。
+
+          完成后用简洁中文总结你的操作。"""
+
+          body = json.dumps({
+              "event": "api_trigger_npc",
+              "npc": {"name": "CodeBuddy", "workMode": True},
+              "env": {
+                  "systemPrompt": "你是 CodeBuddy，自主编程打工人。收到任务后直接动手执行，完成后用简洁中文总结。",
+                  "userPrompt": task,
+              },
+          }).encode()
+
+          req = urllib.request.Request(
+              "https://api.cnb.cool/qun-org/worker/-/build/start",
+              data=body, method="POST",
+              headers={
+                  "Authorization": "Bearer " + os.environ["CNB_TOKEN"],
+                  "Content-Type": "application/json",
+              })
+          try:
+              resp = json.loads(urllib.request.urlopen(req, timeout=30).read())
+              print("打工人已唤醒:", resp.get("sn", resp))
+          except Exception as e:
+              print("唤醒失败:", e)
+              raise
+          PYEOF
