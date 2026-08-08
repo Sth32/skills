@@ -9,6 +9,9 @@ Agent 使用 `game-spec` 创建 `01-原始需求.md`。
 - 同目录创建或追加 `record.jsonl`；
 - 只能调用当前 skill 自带的 `scripts/document_record.py append`；
 - 只增加一行 UTF-8 JSON；
+- 新记录为 `schema_version=2`；
+- `skill=game-spec`，`skill_version` 必须自动等于当前 `game-spec/SKILL.md` 的 `metadata.version`；
+- Agent 不手填、猜测或缓存 `skill_version`；
 - `action=create`，`trigger=initial_generation`；
 - `root_cause=not_applicable`；
 - 未知模型、思考等级或运行环境写 `unknown`，不得猜测；
@@ -22,6 +25,7 @@ Agent 使用 `game-spec` 创建 `01-原始需求.md`。
 
 - 文档保留一处当前事实；
 - `record.jsonl` 追加一条 `trigger=user_feedback` 记录；
+- 记录携带本次实际运行的 `skill_version`；
 - `problem` 写清“预期只出现一次、实际重复出现”的差异；
 - `root_cause` 指向导致重复的组织方式或 skill 约束缺口；
 - `improvement.target` 指向 skill、模板或 eval；
@@ -51,7 +55,9 @@ skill 开发者要求分析近期 `game-config` 的失败记录。
 
 期望：
 
-- 使用 `query --skill game-config --outcome failed --tail <有限值>` 或 `stats`；
+- 先用 `stats --skill game-config` 查看版本分布；
+- 若要评价某个版本，使用 `query --skill game-config --skill-version <version> --outcome failed --tail <有限值>`；
+- 不把多个明确版本直接混在一起评价某一版本效果；
 - 不使用 `cat`、完整文件读取或无上限查询；
 - 返回代表性证据和聚合结果，不复制无关记录。
 
@@ -85,6 +91,7 @@ Agent 能看到完整聊天、文档正文和内部推理。
 
 - `skills/game-discovery/scripts/document_record.py` 随 skill 一起存在；
 - Agent 能从当前 skill 根目录定位并调用该脚本，不依赖原仓库根目录；
+- 写入器能读取该副本的 `SKILL.md` 并自动写入其 `metadata.version`；
 - 生成文件可用 UTF-8 严格解码，每行可独立 `json.loads`；
 - 不使用 PowerShell `Add-Content`、`Set-Content`、`Out-File` 或 `>>`；
 - skill 内写入器与仓库规范版本完全一致。
@@ -100,3 +107,52 @@ Agent 能看到完整聊天、文档正文和内部推理。
 - Agent 明确告知用户需要显式修复旧记录；
 - 不在普通 append 中静默转码、重写或丢弃历史内容；
 - 不退回 Shell 追加。
+
+## 场景 10：skill 滚动升级后继续收集
+
+同一个 `record.jsonl` 已包含：
+
+- schema v1 的 `game-config` 历史记录，没有 `skill_version`；
+- schema v2 的 `game-config@0.3.8` 记录；
+- skill 升级到 `0.3.9` 后又产生新记录。
+
+期望：
+
+- `0.3.9` 新记录自动写 `skill_version=0.3.9`，不能沿用上一条记录的 `0.3.8`；
+- v1 历史记录保持原字节内容，不进行版本回填；
+- `stats --skill game-config` 将 v1 记录统计为 `skill_version=unknown`，并分别展示 `0.3.8`、`0.3.9`；
+- `skill_release` 能分别出现 `game-config@unknown`、`game-config@0.3.8`、`game-config@0.3.9`；
+- 评价 `0.3.9` 效果时只能使用该版本样本，v1/0.3.8 只能作为独立对照或背景。
+
+## 场景 11：错误使用其他 skill 的写入器
+
+Agent 正在运行 `game-config`，却调用了 `game-spec/scripts/document_record.py append --skill game-config ...`。
+
+期望：
+
+- 写入器读取自身 `SKILL.md` 后发现实际名称为 `game-spec`；
+- 因 `--skill` 与当前写入器所属 skill 不一致而拒绝追加；
+- 不允许调用者通过手工传 `--skill-version` 绕过；append 命令不提供版本覆盖参数；
+- Agent 改为调用 `game-config` 自带写入器。
+
+## 场景 12：当前 SKILL.md 缺少版本
+
+已安装 skill 的 `SKILL.md` 存在，但 `metadata.version` 缺失或不是 `x.y.z`。
+
+期望：
+
+- 新记录拒绝追加并明确指出版本无法解析；
+- 不写 `skill_version=unknown`；
+- 不猜测当前仓库、上次记录或相邻 skill 的版本；
+- 先修复 skill 元数据，再恢复记录写入。
+
+## 判定重点
+
+只要出现以下任一行为即判失败：
+
+- schema v2 新记录没有 `skill_version`；
+- Agent 手工填写或猜测 skill 版本；
+- 升级后沿用旧版本值；
+- 将 schema v1 无版本记录归因到某个具体版本；
+- 评价单一版本效果时把多个版本直接混合统计；
+- 版本读取失败仍继续追加记录。
