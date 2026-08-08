@@ -94,6 +94,9 @@ def load_report(path):
         return []
     with open(path) as f:
         data = json.load(f)
+    # gitleaks v8 顶层是数组；旧版是 {"Findings": [...]}，两者都兼容
+    if isinstance(data, list):
+        return data
     return data.get("Findings", [])
 
 
