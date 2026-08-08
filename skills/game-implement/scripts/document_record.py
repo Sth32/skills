@@ -6,16 +6,22 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from collections import Counter, deque
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 UNKNOWN = "unknown"
 MAX_TEXT_LENGTH = 1000
 MAX_QUERY_TAIL = 200
+SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
+SKILL_NAME_RE = re.compile(r'(?m)^name:\s*["\']?([^"\'\n]+)["\']?\s*$')
+SKILL_VERSION_RE = re.compile(
+    r'(?m)^\s{2}version:\s*["\']?(\d+\.\d+\.\d+)["\']?\s*$'
+)
 
 ACTIONS = ("create", "update", "delete", "rename")
 TRIGGERS = (
@@ -62,6 +68,45 @@ def normalized_documents(values: Iterable[str]) -> list[str]:
     return result
 
 
+def read_current_skill_identity(expected_skill: str) -> tuple[str, str]:
+    """Resolve the installed skill identity from the writer's own skill root."""
+    skill_file = Path(__file__).resolve().parents[1] / "SKILL.md"
+    if not skill_file.is_file():
+        raise ValueError(
+            "cannot resolve skill version: invoke the writer bundled under "
+            "<skill-root>/scripts/document_record.py"
+        )
+
+    try:
+        text = skill_file.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{skill_file} is not valid UTF-8") from exc
+
+    if not text.startswith("---\n"):
+        raise ValueError(f"{skill_file} is missing YAML frontmatter")
+    try:
+        _, frontmatter, _ = text.split("---", 2)
+    except ValueError as exc:
+        raise ValueError(f"{skill_file} has incomplete YAML frontmatter") from exc
+
+    name_match = SKILL_NAME_RE.search(frontmatter)
+    version_match = SKILL_VERSION_RE.search(frontmatter)
+    if not name_match:
+        raise ValueError(f"{skill_file} is missing frontmatter name")
+    if not version_match:
+        raise ValueError(f"{skill_file} is missing semantic metadata.version")
+
+    actual_skill = name_match.group(1).strip()
+    skill_version = version_match.group(1).strip()
+    if actual_skill != expected_skill:
+        raise ValueError(
+            f"--skill={expected_skill!r} does not match bundled SKILL.md name={actual_skill!r}"
+        )
+    if not SEMVER_RE.fullmatch(skill_version):
+        raise ValueError(f"invalid skill version in {skill_file}: {skill_version!r}")
+    return actual_skill, skill_version
+
+
 def decode_jsonl_line(path: Path, line_number: int, raw: bytes) -> dict[str, Any] | None:
     try:
         text = raw.decode("utf-8")
@@ -79,6 +124,12 @@ def decode_jsonl_line(path: Path, line_number: int, raw: bytes) -> dict[str, Any
         raise ValueError(f"{path}:{line_number} is not valid JSON: {exc}") from exc
     if not isinstance(value, dict):
         raise ValueError(f"{path}:{line_number} must contain one JSON object")
+    if value.get("schema_version") == 2:
+        skill_version = value.get("skill_version")
+        if not isinstance(skill_version, str) or not SEMVER_RE.fullmatch(skill_version):
+            raise ValueError(
+                f"{path}:{line_number} schema v2 requires semantic skill_version"
+            )
     return value
 
 
@@ -111,6 +162,9 @@ def append_single_write(path: Path, payload: dict[str, Any]) -> None:
 
 
 def build_entry(args: argparse.Namespace) -> dict[str, Any]:
+    skill, skill_version = read_current_skill_identity(
+        bounded(args.skill, "skill", allow_empty=False)
+    )
     root_cause = bounded(args.root_cause, "root_cause") or (
         "not_applicable" if args.trigger == "initial_generation" else UNKNOWN
     )
@@ -121,7 +175,8 @@ def build_entry(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
         "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
-        "skill": bounded(args.skill, "skill", allow_empty=False),
+        "skill": skill,
+        "skill_version": skill_version,
         "runtime": bounded(args.runtime, "runtime") or UNKNOWN,
         "model": bounded(args.model, "model") or UNKNOWN,
         "reasoning_effort": bounded(args.reasoning_effort, "reasoning_effort") or UNKNOWN,
@@ -158,8 +213,15 @@ def iter_entries(path: Path) -> Iterable[dict[str, Any]]:
                 yield value
 
 
+def entry_skill_version(entry: dict[str, Any]) -> str:
+    value = entry.get("skill_version")
+    return value if isinstance(value, str) and value else UNKNOWN
+
+
 def matches(entry: dict[str, Any], args: argparse.Namespace) -> bool:
     if args.skill and entry.get("skill") != args.skill:
+        return False
+    if args.skill_version and entry_skill_version(entry) != args.skill_version:
         return False
     if args.trigger and entry.get("trigger") != args.trigger:
         return False
@@ -237,6 +299,9 @@ def command_stats(args: argparse.Namespace) -> int:
 
     counters = {
         "skill": Counter(),
+        "skill_version": Counter(),
+        "skill_release": Counter(),
+        "schema_version": Counter(),
         "trigger": Counter(),
         "outcome": Counter(),
         "improvement_target": Counter(),
@@ -246,7 +311,12 @@ def command_stats(args: argparse.Namespace) -> int:
         if not matches(entry, args):
             continue
         total += 1
-        counters["skill"][str(entry.get("skill", UNKNOWN))] += 1
+        skill = str(entry.get("skill", UNKNOWN))
+        skill_version = entry_skill_version(entry)
+        counters["skill"][skill] += 1
+        counters["skill_version"][skill_version] += 1
+        counters["skill_release"][f"{skill}@{skill_version}"] += 1
+        counters["schema_version"][str(entry.get("schema_version", UNKNOWN))] += 1
         counters["trigger"][str(entry.get("trigger", UNKNOWN))] += 1
         counters["outcome"][str(entry.get("outcome", UNKNOWN))] += 1
         target = (entry.get("improvement") or {}).get("target", UNKNOWN)
@@ -262,6 +332,10 @@ def command_stats(args: argparse.Namespace) -> int:
 
 def add_filters(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--skill")
+    parser.add_argument(
+        "--skill-version",
+        help="exact skill version; use 'unknown' only to inspect legacy records without a version",
+    )
     parser.add_argument("--trigger", choices=TRIGGERS)
     parser.add_argument("--outcome", choices=OUTCOMES)
     parser.add_argument("--improvement-target", choices=IMPROVEMENT_TARGETS)
