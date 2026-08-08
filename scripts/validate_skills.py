@@ -32,11 +32,31 @@ DOCUMENT_RECORD_RULE = (
     "证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。评估滚动更新的 skill 时必须按 `skill_version` 过滤或分组，不能把版本未知的旧记录"
     "或多个版本直接混为同一版本效果。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**"
 )
-REQUIRED_DOCUMENT_RECORD_FILES = (
+
+BRANCHABLE_SKILLS = frozenset(
+    {
+        "game-discovery",
+        "game-tech-clarify",
+        "game-config",
+        "game-scaffold",
+        "game-implement",
+        "game-client-handoff",
+    }
+)
+BRANCH_RULE_MARKER = "**分支工作流硬限制："
+SPEC_ROOT_RULE_MARKER = "**根文档硬限制："
+REVIEW_MERGE_RULE_MARKER = "**Review 汇合硬限制："
+BRANCH_INDEX_NAME = "00-工作流索引.md"
+REVIEW_BRANCH_FORBIDDEN_MARKER = "禁止创建 `07-Uxx-*`"
+
+REQUIRED_REPO_FILES = (
     "scripts/document_record.py",
     "docs/skill-development/document-change-record.md",
     "evals/document-recording.md",
+    "docs/skill-development/branch-workflow.md",
+    "evals/branch-workflow.md",
 )
+
 
 def parse_frontmatter(path: Path) -> dict[str, str]:
     text = path.read_text(encoding="utf-8")
@@ -86,6 +106,32 @@ def validate_skill(skill_dir: Path) -> list[str]:
         errors.append("missing canonical stage-completion consistency rule")
     if DOCUMENT_RECORD_RULE not in text:
         errors.append("missing canonical document change record rule")
+
+    if name == "game-spec":
+        if SPEC_ROOT_RULE_MARKER not in text:
+            errors.append("missing original-requirement single-root rule")
+        if "01-Uxx" not in text:
+            errors.append("game-spec must explicitly forbid branched 01 documents")
+
+    if name in BRANCHABLE_SKILLS:
+        if BRANCH_RULE_MARKER not in text:
+            errors.append("missing branch-workflow rule")
+        if BRANCH_INDEX_NAME not in text:
+            errors.append("branchable skill must reference the workflow index")
+        if "禁止" not in text or "子目录" not in text:
+            errors.append("branchable skill must explicitly forbid branch subdirectories")
+
+    if name == "game-review":
+        if REVIEW_MERGE_RULE_MARKER not in text:
+            errors.append("missing mandatory review convergence rule")
+        if BRANCH_INDEX_NAME not in text:
+            errors.append("game-review must understand branched workflow indexes")
+        if REVIEW_BRANCH_FORBIDDEN_MARKER not in text:
+            errors.append("game-review must explicitly forbid 07-Uxx review documents")
+
+    if name == "game-docs" and BRANCH_INDEX_NAME not in text:
+        errors.append("game-docs must locate converged branch inputs through the workflow index")
+
     bundled_writer = skill_dir / "scripts" / "document_record.py"
     if not bundled_writer.is_file():
         errors.append("missing bundled UTF-8 document record writer")
@@ -101,7 +147,7 @@ def validate_skill(skill_dir: Path) -> list[str]:
 
 def main() -> int:
     failed = False
-    for relative_path in REQUIRED_DOCUMENT_RECORD_FILES:
+    for relative_path in REQUIRED_REPO_FILES:
         if not (ROOT / relative_path).is_file():
             failed = True
             print(f"FAIL missing required file: {relative_path}")
