@@ -24,10 +24,13 @@ DOCUMENT_CONSISTENCY_RULE = (
 DOCUMENT_RECORD_RULE = (
     "**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶"
     "段过程文档，记录文件自身的追加不触发再次记录。写入必须调用本 skill 自带的 `scripts/document_record.py append`；该脚本使用 UTF-8（无 BOM）字节单次追"
-    "加，并在追加前静默校验已有文件仍是 UTF-8 JSONL。禁止使用 `>`、`>>`、`echo`、PowerShell `Add-Content`/`Set-Content`/`Out-File`"
-    " 或通用文本写入 API 直接修改 `record.jsonl`，脚本失败时也不得降级绕过；找不到脚本、现有文件编码异常或追加失败时，必须明确告知用户并停止记录写入。记录至少包含时间、skill、运行"
-    "环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。禁止写入完整提示词、文档正文、用"
-    "户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**"
+    "加，并在追加前静默校验已有文件仍是 UTF-8 JSONL。每条新记录必须包含实际 `skill_version`；版本由写入器从当前 skill 根目录 `SKILL.md` 的 `metadata"
+    ".version` 自动读取，禁止由 Agent 手填、猜测或沿用历史值。写入器无法读取版本、版本格式非法或 `--skill` 与当前 `SKILL.md` 名称不一致时，必须拒绝追加并明确报告；不"
+    "得写 `unknown` 伪装新记录。历史 schema v1 记录缺少版本时保留原样，查询和统计统一视为 `skill_version=unknown`，不得回填猜测版本。禁止使用 `>`、`>>`"
+    "、`echo`、PowerShell `Add-Content`/`Set-Content`/`Out-File` 或通用文本写入 API 直接修改 `record.jsonl`，脚本失败时也不得降级"
+    "绕过；找不到脚本、现有文件编码异常或追加失败时，必须明确告知用户并停止记录写入。记录至少包含时间、skill 及其实际版本、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验"
+    "证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。评估滚动更新的 skill 时必须按 `skill_version` 过滤或分组，不能把版本未知的旧记录"
+    "或多个版本直接混为同一版本效果。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**"
 )
 REQUIRED_DOCUMENT_RECORD_FILES = (
     "scripts/document_record.py",
