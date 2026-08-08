@@ -1,0 +1,16 @@
+# 安全审计 allowlist — 命中则视为无害（P2），不告警
+# 每行一条规则，支持前缀指令 + 正则（忽略大小写）:
+#   file:xxx   -> 正则匹配文件路径
+#   rule:xxx   -> 正则匹配 gitleaks RuleID
+#   commit:xxx -> 正则匹配 commit sha
+#   match:xxx  -> 正则匹配泄漏上下文文本
+#   裸正则     -> 匹配文件路径
+# 空行和 # 开头的注释忽略。
+#
+# 示例:
+#   file:docs/.*\.md
+#   rule:generic-api-key
+#   match:example\.com
+
+# 测试用
+file:docs/.*
