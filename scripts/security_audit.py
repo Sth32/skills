@@ -6,16 +6,16 @@
 
 行为:
   - 读 gitleaks JSON report，按危险程度分级:
-      P0 高危（真实凭据强规则命中）-> 钉钉告警 + 唤醒 CNB 打工人处置（撤销/移除/回退）
-      P1 疑似（弱规则/敏感文件名）-> 钉钉告警，人工确认
+      P0 高危（真实凭据强规则命中）-> 飞书告警 + 唤醒 CNB 打工人处置（撤销/移除/回退）
+      P1 疑似（弱规则/敏感文件名）-> 飞书告警，人工确认
       P2 无害（allowlist 命中 / 占位符 / 示例）-> 忽略
   - 无泄漏: 静默退出（exit 0）
   - 绝不把 Secret 值打印到日志或告警消息（只输出文件/行/规则/commit 定位信息）
 
 环境变量:
   CNB_TOKEN         CNB OpenAPI 令牌（P0 时唤醒打工人用）
-  DINGTALK_WEBHOOK  钉钉群机器人 webhook（含 access_token）
-  DINGTALK_SECRET   钉钉机器人加签 secret
+  FEISHU_WEBHOOK    飞书群机器人 webhook
+  FEISHU_SECRET     飞书机器人加签 secret
 
 Allowlist 文件: .github/security-audit-allowlist.txt
   每行一条规则，支持前缀指令 + 正则:
@@ -170,39 +170,45 @@ def scan_sensitive_files():
     return hits
 
 
-def dingtalk_send(title, text, msgtype="markdown"):
-    webhook = os.environ.get("DINGTALK_WEBHOOK", "")
-    secret = os.environ.get("DINGTALK_SECRET", "")
+def feishu_send(title, text):
+    """发送飞书群机器人消息（text 类型）。
+
+    飞书自定义机器人加签（与钉钉不同，勿照搬钉钉写法）:
+      timestamp = 当前秒（不是毫秒）
+      string_to_sign = timestamp + "\\n" + secret
+      sign = base64(hmac_sha256(string_to_sign 作为 key，消息为空)) 并 URL 编码
+      即 hmac.new(string_to_sign.encode(), digestmod=hashlib.sha256)
+    """
+    webhook = os.environ.get("FEISHU_WEBHOOK", "")
+    secret = os.environ.get("FEISHU_SECRET", "")
     if not webhook or not secret:
-        print("[warn] 缺少 DINGTALK_WEBHOOK/DINGTALK_SECRET，跳过钉钉告警")
+        print("[warn] 缺少 FEISHU_WEBHOOK/FEISHU_SECRET，跳过飞书告警")
         return False
-    ts = str(int(time.time() * 1000))
+    ts = str(int(time.time()))
     string_to_sign = f"{ts}\n{secret}"
-    sign = urllib.parse.quote_plus(
-        base64.b64encode(
-            hmac.new(secret.encode(), string_to_sign.encode(), hashlib.sha256).digest()
-        )
-    )
-    url = f"{webhook}&timestamp={ts}&sign={sign}"
-    payload = {"title": title, "text": text}
-    body = json.dumps({"msgtype": msgtype, msgtype: payload}).encode()
+    hmac_code = hmac.new(string_to_sign.encode(), digestmod=hashlib.sha256).digest()
+    sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
+    url = f"{webhook}?timestamp={ts}&sign={sign}"
+    body = json.dumps(
+        {"msg_type": "text", "content": {"text": f"{title}\n{text}"}}
+    ).encode()
     req = urllib.request.Request(
         url, data=body, headers={"Content-Type": "application/json"}
     )
     try:
         resp = json.loads(urllib.request.urlopen(req, timeout=10).read())
-        if resp.get("errcode") != 0:
-            print("[warn] 钉钉发送失败:", resp)
+        if resp.get("code") != 0:
+            print("[warn] 飞书发送失败:", resp)
             return False
-        print("[ok] 钉钉告警已发送:", title)
+        print("[ok] 飞书告警已发送:", title)
         return True
     except Exception as e:
-        print("[warn] 钉钉发送异常:", e)
+        print("[warn] 飞书发送异常:", e)
         return False
 
 
 def wake_worker(repo, commit, findings):
-    """P0 时唤醒 CNB 打工人：撤销密钥 + 移除泄漏 + 钉钉汇报"""
+    """P0 时唤醒 CNB 打工人：撤销密钥 + 移除泄漏 + 飞书汇报"""
     cnb_token = os.environ.get("CNB_TOKEN", "")
     if not cnb_token:
         print("[warn] 缺少 CNB_TOKEN，无法唤醒打工人")
@@ -236,13 +242,13 @@ def wake_worker(repo, commit, findings):
    git push origin main
    （commit 消息必须以 [ci-skip-notify] 开头，否则审计 workflow 会再次触发造成死循环）
 4. 验证: 重新拉取后确认泄漏内容已不在工作区文件里（不必重跑完整审计）。
-5. 钉钉汇报（必须做）:
-   环境变量 DINGTALK_WEBHOOK / DINGTALK_SECRET 已注入。
-   加签算法: timestamp=当前毫秒; string_to_sign=timestamp+"\\n"+DINGTALK_SECRET;
-   sign=base64(hmac_sha256(string_to_sign, DINGTALK_SECRET)) 并 URL 编码;
-   请求 URL = DINGTALK_WEBHOOK + "&timestamp=" + timestamp + "&sign=" + sign
-   用 msgtype=markdown，内容包含: 泄漏位置、核实结论、已移除的文件、需要用户手动撤销的密钥清单。
-6. 遇到不确定的情况（疑似误报/需要设计决策）-> 钉钉发"需人工确认"并停手，不要乱改仓库。
+5. 飞书汇报（必须做）:
+   环境变量 FEISHU_WEBHOOK / FEISHU_SECRET 已注入。
+   加签算法: timestamp=当前秒; string_to_sign=timestamp+"\\n"+FEISHU_SECRET;
+   sign=base64(hmac_sha256(string_to_sign 作为 key，消息为空)) 并 URL 编码;
+   请求 URL = FEISHU_WEBHOOK + "?timestamp=" + timestamp + "&sign=" + sign
+   用 msg_type=text，content={"text": 汇报内容}，内容包含: 泄漏位置、核实结论、已移除的文件、需要用户手动撤销的密钥清单。
+6. 遇到不确定的情况（疑似误报/需要设计决策）-> 飞书发"需人工确认"并停手，不要乱改仓库。
 
 完成后用简洁中文总结你的操作。"""
     body = json.dumps(
@@ -334,7 +340,7 @@ def main():
             f"\n**处置**: 已自动唤醒 CNB 打工人撤销/移除密钥，完成后另行汇报。"
             f"请留意后续消息，并按汇报要求手动撤销无法自动撤销的密钥。{extra}"
         )
-        dingtalk_send(f"🚨 高危密钥泄漏 {args.repo}", text)
+        feishu_send(f"🚨 高危密钥泄漏 {args.repo}", text)
         wake_worker(args.repo, args.commit, p0)
     else:
         text = (
@@ -346,7 +352,7 @@ def main():
             f"\n**处置**: 请人工确认是否为真实密钥。若为误报，"
             f"将对应文件/规则加入 `.github/security-audit-allowlist.txt`。{extra}"
         )
-        dingtalk_send(f"⚠️ 疑似凭据泄漏 {args.repo}", text)
+        feishu_send(f"⚠️ 疑似凭据泄漏 {args.repo}", text)
 
     return 1
 

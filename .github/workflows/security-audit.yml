@@ -2,10 +2,10 @@
 # security-audit.yml — 密钥泄漏审计（gitleaks + 分级处置）
 # 仓库：Sth32/skills（模板：新仓库加入审计 = 复制本文件 + 配好 secrets）
 # 触发：push / 每周一 03:00 UTC（北京 11:00）/ 手动
-# 分级：P0 高危 -> 钉钉告警 + 唤醒 CNB 打工人撤销/移除；P1 疑似 -> 钉钉告警人工确认
+# 分级：P0 高危 -> 飞书告警 + 唤醒 CNB 打工人撤销/移除；P1 疑似 -> 飞书告警人工确认
 # 防循环：打工人修复提交以 [ci-skip-notify] 开头 -> 跳过
-# 前置：Actions secrets 需 CNB_TOKEN、DINGTALK_WEBHOOK、DINGTALK_SECRET
-#   （CNB_TOKEN 触发打工人；钉钉两个 secret 用于 P0/P1 告警直发）
+# 前置：Actions secrets 需 CNB_TOKEN、FEISHU_WEBHOOK、FEISHU_SECRET
+#   （CNB_TOKEN 触发打工人；飞书两个 secret 用于 P0/P1 告警直发）
 # ============================================================
 name: Security audit
 
@@ -49,8 +49,8 @@ jobs:
       - name: 分级与处置
         env:
           CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
-          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
-          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+          FEISHU_SECRET: ${{ secrets.FEISHU_SECRET }}
         run: |
           python3 scripts/security_audit.py \
             --report gitleaks-report.json \

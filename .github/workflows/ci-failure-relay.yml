@@ -77,13 +77,13 @@ jobs:
           5. 推送后验证: gh run watch --exit-status --interval 10
              （用 GITHUB_TOKEN 环境变量: export GH_TOKEN=$GITHUB_TOKEN）
              失败则继续修，最多 3 轮。
-          6. 全部通过后，向钉钉群发汇报消息（必须做）:
-             环境变量 DINGTALK_WEBHOOK / DINGTALK_SECRET 已注入。
-             加签算法: timestamp=当前毫秒; string_to_sign=timestamp+"\\n"+DINGTALK_SECRET;
-             sign=base64(hmac_sha256(string_to_sign, DINGTALK_SECRET)) 并 URL 编码;
-             请求 URL = DINGTALK_WEBHOOK + "&timestamp=" + timestamp + "&sign=" + sign
-             用 msgtype=markdown，内容包含: 修复了什么、改了哪些文件、新 run 结果。
-          7. 修不动（3 轮仍红、或需要设计决策/大重构）→ 钉钉发"需要人工介入"通知并停手，不要乱改仓库。
+          6. 全部通过后，向飞书群发汇报消息（必须做）:
+             环境变量 FEISHU_WEBHOOK / FEISHU_SECRET 已注入。
+             飞书加签（与钉钉不同）: timestamp=当前秒; string_to_sign=timestamp+"\\n"+FEISHU_SECRET;
+             sign=base64(hmac_sha256(string_to_sign 作为 key，消息为空)) 并 URL 编码;
+             请求 URL = FEISHU_WEBHOOK + "?timestamp=" + timestamp + "&sign=" + sign
+             用 msg_type=text，content={"text": 汇报内容}，内容包含: 修复了什么、改了哪些文件、新 run 结果。
+          7. 修不动（3 轮仍红、或需要设计决策/大重构）→ 飞书发"需要人工介入"通知并停手，不要乱改仓库。
 
           完成后用简洁中文总结你的操作。"""
 
