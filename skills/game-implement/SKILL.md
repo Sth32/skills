@@ -2,7 +2,7 @@
 name: game-implement
 description: Use when a game feature already has an approved runnable implementation skeleton and needs its remaining product behavior, edge cases, failure handling, compatibility, tests, and operational details completed without casually redesigning the established framework.
 metadata:
-  version: "0.1.9"
+  version: "0.1.10"
 ---
 
 # 完成游戏功能实现
@@ -29,7 +29,7 @@ metadata:
 
 **跨 session 可恢复性硬限制：当前工作单元的完整实现方案文档不得依赖当前聊天上下文才能继续实现。** 在开始编码、每个分步 review 边界、暂停或结束当前 session 前，文档必须能明确回答：当前工作单元、实现模式、步骤划分、已确认范围、当前步骤及状态、实际代码基线与关键入口、已完成行为和验证证据、尚未解决的阻塞或决策、下一动作及进入下一步的条件。不得复制共享 `01` 或其他工作单元全文来制造“自包含”；只保留继续实现必需的引用、差异和当前状态。新的 session 必须先用当前文档核对实际代码/diff，发现不一致时以代码事实为依据立即修正文档后再继续。
 
-**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。写入必须调用本 skill 自带的 `scripts/document_record.py append`；该脚本使用 UTF-8（无 BOM）字节单次追加，并在追加前静默校验已有文件仍是 UTF-8 JSONL。每条新记录必须包含实际 `skill_version`；版本由写入器从当前 skill 根目录 `SKILL.md` 的 `metadata.version` 自动读取，禁止由 Agent 手填、猜测或沿用历史值。写入器无法读取版本、版本格式非法或 `--skill` 与当前 `SKILL.md` 名称不一致时，必须拒绝追加并明确报告；不得写 `unknown` 伪装新记录。历史 schema v1 记录缺少版本时保留原样，查询和统计统一视为 `skill_version=unknown`，不得回填猜测版本。禁止使用 `>`、`>>`、`echo`、PowerShell `Add-Content`/`Set-Content`/`Out-File` 或通用文本写入 API 直接修改 `record.jsonl`，脚本失败时也不得降级绕过；找不到脚本、现有文件编码异常或追加失败时，必须明确告知用户并停止记录写入。记录至少包含时间、skill 及其实际版本、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。评估滚动更新的 skill 时必须按 `skill_version` 过滤或分组，不能把版本未知的旧记录或多个版本直接混为同一版本效果。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**
+**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。新记录使用 schema v3，并区分“实际使用 skill”和“未使用 skill”：只要当前 Agent 实际加载/执行了本 skill（即使用户没有显式写出 skill 名称），就必须调用本 skill 自带的 `scripts/document_record.py append --skill <当前skill>`，写入 `skill_usage=used`，`skill_version` 由写入器从当前 `SKILL.md` 的 `metadata.version` 自动读取，禁止 Agent 手填、猜测或沿用历史值；若一次变更实际没有使用任何 skill，才可使用 `--no-skill`，写入 `skill_usage=not_used`、`skill=null`、`skill_version=null`，不得挑选一个“最接近”的 skill 冒充来源。用户是否显式声明 skill 不是归因依据，实际是否加载/执行才是。写入器 append 前只校验已有文件仍可逐行解析为 UTF-8 JSON object；历史行的 schema 字段缺失或语义错误（例如旧 schema v2 缺少 `skill_version`）必须由 `check` 报告，但不得阻塞后续独立追加，也不得静默修改旧行；只有非 UTF-8、非法 JSON、非 object 等存储层损坏才拒绝 append。历史 schema v1 或非法 v2 无版本记录在查询和统计时统一视为 `skill_version=unknown`；no-skill v3 视为 `skill=none`、`skill_version=not_applicable`，不得回填猜测版本。禁止使用 `>`、`>>`、`echo`、PowerShell `Add-Content`/`Set-Content`/`Out-File` 或通用文本写入 API 直接修改 `record.jsonl`，脚本失败时也不得降级绕过。记录至少包含时间、skill usage、skill/版本归因、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。评估滚动更新的 skill 时必须只使用 `skill_usage=used` 且按 `skill_version` 过滤或分组，不能把 no-skill、版本未知或多个版本直接混为同一版本效果。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**
 
 创建或修改 `00-工作流索引.md` 同样必须追加记录；普通实现正文变化若不改变拓扑、当前阶段或当前文档，不重复改写索引。
 
