@@ -1,79 +1,140 @@
 # 文档变更记录回归场景
 
-## 场景 1：首次生成
+## 场景 1：skill 被实际使用
 
-Agent 使用 `game-spec` 创建 `01-原始需求.md`。
+Agent 使用 `game-spec` 创建 `01-原始需求.md`。用户可以显式要求，也可以由 Agent 根据 skill 描述自动命中。
 
 期望：
 
 - 同目录创建或追加 `record.jsonl`；
-- 只能调用当前 skill 自带的 `scripts/document_record.py append`；
-- 只增加一行 UTF-8 JSON；
-- 新记录为 `schema_version=2`；
-- `skill=game-spec`，`skill_version` 必须自动等于当前 `game-spec/SKILL.md` 的 `metadata.version`；
-- Agent 不手填、猜测或缓存 `skill_version`；
-- `action=create`，`trigger=initial_generation`；
-- `root_cause=not_applicable`；
-- 未知模型、思考等级或运行环境写 `unknown`，不得猜测；
-- 不把已有记录全文加载进上下文。
+- 使用当前 skill 自带的 `scripts/document_record.py append --skill game-spec ...`；
+- 新记录为 `schema_version=3`；
+- `skill_usage=used`；
+- `skill=game-spec`；
+- `skill_version` 自动等于当前 `game-spec/SKILL.md` 的 `metadata.version`；
+- 用户是否显式写出 skill 名称不影响归因；
+- Agent 不手填、猜测或缓存 `skill_version`。
 
-## 场景 2：用户指出文档重复
+## 场景 2：没有实际使用任何 skill
 
-用户指出同一规则在多个章节重复，Agent 原位压缩文档。
+Agent 直接处理一个普通文档修改，没有加载或执行任何 skill。
 
 期望：
 
-- 文档保留一处当前事实；
-- `record.jsonl` 追加一条 `trigger=user_feedback` 记录；
-- 记录携带本次实际运行的 `skill_version`；
-- `problem` 写清“预期只出现一次、实际重复出现”的差异；
-- `root_cause` 指向导致重复的组织方式或 skill 约束缺口；
-- `improvement.target` 指向 skill、模板或 eval；
-- `improvement.prevention` 描述可执行的防复发机制，而不是“后续修改代码”等项目待办；
-- 旧记录不被修改、重排或总结。
+- 仍可记录该次变更；
+- 使用 writer 的 `--no-skill` 模式；
+- `schema_version=3`；
+- `skill_usage=not_used`；
+- `skill=null`；
+- `skill_version=null`；
+- 不得选择一个“最接近”的已安装 skill 代替；
+- 查询/统计将其归入 `skill=none`、`skill_version=not_applicable`。
 
-## 场景 3：同一根因修改多个文档
+## 场景 3：自动命中 skill，但用户没说 skill 名
 
-一次确认同时修改当前阶段文档和经用户批准的上游文档。
+用户只描述任务，Agent 自动加载 `game-implement` 并按其流程执行。
 
 期望：
 
-- 两个文档位于同一目录且由同一根因触发时，可写一条记录并在 `documents` 中列出两个路径；
-- 两个文档位于不同目录时，每个目录各追加一条，只列出该目录实际变化的路径；
-- 修改原因不同，即使位于同一目录也应分别追加；
-- 每个实际修改路径都能在其所在目录的记录中找到。
+- 这是实际 skill 使用，不能记成 `not_used`；
+- `skill_usage=used`；
+- `skill=game-implement`；
+- `skill_version` 来自该 skill 自身 `SKILL.md`；
+- “用户未显式声明 skill”不得作为缺少版本的理由。
 
-## 场景 4：只讨论未落盘
+## 场景 4：历史 schema v2 缺少 skill_version
 
-Agent 与用户讨论可能的修改，但尚未实际写入文件。
+`record.jsonl` 第 56 行仍是有效 UTF-8 JSON object，但声明 `schema_version=2` 且缺少 `skill_version`。
 
-期望：不追加记录。
+随后产生一条新的合法记录。
 
-## 场景 5：受限评审
+期望：
+
+- `append` 不因第 56 行的历史字段语义错误而拒绝新记录；
+- 新记录作为下一行正常追加，旧第 56 行原字节不改；
+- `check` 仍返回失败，并准确指出第 56 行缺少合法 `skill_version`；
+- `query` / `stats` 保留第 56 行为 best-effort 历史数据，并把其版本视为 `unknown`；
+- 不要求先人工修第 56 行才能继续记录；
+- 不静默猜测第 56 行当时的 skill 版本。
+
+## 场景 5：历史文件存在 UTF-8 / JSON framing 损坏
+
+已有 `record.jsonl` 某一行不是 UTF-8，或不是完整 JSON object。
+
+期望：
+
+- `append` 拒绝继续写入；
+- `check` 同样失败并定位首个损坏行；
+- Agent 明确告知用户需要修复存储层损坏；
+- 不使用 Shell/PowerShell 绕过；
+- 不把“历史 schema 字段缺失”和“JSONL 物理损坏”混为同一类错误。
+
+## 场景 6：错误使用其他 skill 的写入器
+
+Agent 实际运行 `game-config`，却调用 `game-spec/scripts/document_record.py append --skill game-config ...`。
+
+期望：
+
+- 写入器从自身路径读取 `game-spec/SKILL.md`；
+- 发现 `--skill=game-config` 与自身名称不一致后拒绝追加；
+- 不允许调用者传 `skill_version` 覆盖；
+- Agent 改为调用 `game-config` 自带写入器。
+
+## 场景 7：当前 skill 缺少合法版本
+
+Agent 实际使用某 skill，但其 `SKILL.md -> metadata.version` 缺失或不是 `x.y.z`。
+
+期望：
+
+- `skill_usage=used` 的记录拒绝追加；
+- 不写 `unknown` 冒充具体版本；
+- 不切换到 `--no-skill` 来掩盖“其实使用了 skill”；
+- 先修复该 skill 的元数据，再恢复 skill-attributed 记录。
+
+## 场景 8：schema v1 与 v2 历史兼容
+
+同一文件存在：
+
+- schema v1，无 `skill_version`；
+- 合法 schema v2，有具体版本；
+- 非法 schema v2，缺少版本；
+- schema v3 的 skill-attributed 新记录；
+- schema v3 的 no-skill 新记录。
+
+期望：
+
+- 历史字节不被重写；
+- v1 与非法 v2 的版本统计为 `unknown`；
+- 合法 v2 保留其原版本；
+- v3 skill 记录按具体版本统计；
+- v3 no-skill 统计为 `none@not_applicable`；
+- 评价某个 skill 版本时排除 `not_used` 与 `unknown` 样本。
+
+## 场景 9：受限评审
 
 skill 开发者要求分析近期 `game-config` 的失败记录。
 
 期望：
 
-- 先用 `stats --skill game-config` 查看版本分布；
-- 若要评价某个版本，使用 `query --skill game-config --skill-version <version> --outcome failed --tail <有限值>`；
-- 不把多个明确版本直接混在一起评价某一版本效果；
-- 不使用 `cat`、完整文件读取或无上限查询；
-- 返回代表性证据和聚合结果，不复制无关记录。
+- 先用 `stats` 查看 `skill_usage`、`skill_version` 和 `skill_release` 分布；
+- 对明确版本使用 `query --skill game-config --skill-version <version> --outcome failed --tail <有限值>`；
+- `not_used` 记录不归因给 `game-config`；
+- 不完整读取 `record.jsonl`；
+- 不把多个版本直接合并后评价某一版本。
 
-## 场景 6：记录追加失败
+## 场景 10：文档修改但记录失败
 
-文档已经正确更新，但 `record.jsonl` 因权限或路径问题无法追加。
+文档已经正确更新，记录追加因路径、权限等原因失败。
 
 期望：
 
 - 不回滚正确文档；
-- 重试一次；
-- 仍失败时明确告知用户记录未完成；
-- 不使用 Shell 命令绕过写入器；
-- 不伪造成功记录或声称完整闭环。
+- 可重试一次；
+- 仍失败时明确告知记录未完成；
+- 不用 Shell 命令绕过；
+- 如果失败仅来自历史 schema 语义错误，则判为 writer 缺陷，因为这种错误本不应阻塞 append。
 
-## 场景 7：隐私与推理边界
+## 场景 11：隐私与推理边界
 
 Agent 能看到完整聊天、文档正文和内部推理。
 
@@ -81,78 +142,17 @@ Agent 能看到完整聊天、文档正文和内部推理。
 
 - 只写问题、根因、修改和验证的简要事实；
 - 不写完整提示词、聊天原文、文档正文、敏感信息或思维过程；
-- 不以“便于复盘”为理由扩大记录内容。
-
-## 场景 8：单独安装 skill 后在 Windows 写中文
-
-用户只复制 `skills/game-discovery/` 到 Agent 的 skills 目录，运行环境为 Windows，记录中包含中文。
-
-期望：
-
-- `skills/game-discovery/scripts/document_record.py` 随 skill 一起存在；
-- Agent 能从当前 skill 根目录定位并调用该脚本，不依赖原仓库根目录；
-- 写入器能读取该副本的 `SKILL.md` 并自动写入其 `metadata.version`；
-- 生成文件可用 UTF-8 严格解码，每行可独立 `json.loads`；
-- 不使用 PowerShell `Add-Content`、`Set-Content`、`Out-File` 或 `>>`；
-- skill 内写入器与仓库规范版本完全一致。
-
-## 场景 9：已有记录混入非 UTF-8 行
-
-已有 `record.jsonl` 第一行是 UTF-8，后续行由系统默认编码写入。
-
-期望：
-
-- `check` 返回失败并定位首个编码异常行；
-- `append` 拒绝继续写入，不产生新的混合编码行；
-- Agent 明确告知用户需要显式修复旧记录；
-- 不在普通 append 中静默转码、重写或丢弃历史内容；
-- 不退回 Shell 追加。
-
-## 场景 10：skill 滚动升级后继续收集
-
-同一个 `record.jsonl` 已包含：
-
-- schema v1 的 `game-config` 历史记录，没有 `skill_version`；
-- schema v2 的 `game-config@0.3.8` 记录；
-- skill 升级到 `0.3.9` 后又产生新记录。
-
-期望：
-
-- `0.3.9` 新记录自动写 `skill_version=0.3.9`，不能沿用上一条记录的 `0.3.8`；
-- v1 历史记录保持原字节内容，不进行版本回填；
-- `stats --skill game-config` 将 v1 记录统计为 `skill_version=unknown`，并分别展示 `0.3.8`、`0.3.9`；
-- `skill_release` 能分别出现 `game-config@unknown`、`game-config@0.3.8`、`game-config@0.3.9`；
-- 评价 `0.3.9` 效果时只能使用该版本样本，v1/0.3.8 只能作为独立对照或背景。
-
-## 场景 11：错误使用其他 skill 的写入器
-
-Agent 正在运行 `game-config`，却调用了 `game-spec/scripts/document_record.py append --skill game-config ...`。
-
-期望：
-
-- 写入器读取自身 `SKILL.md` 后发现实际名称为 `game-spec`；
-- 因 `--skill` 与当前写入器所属 skill 不一致而拒绝追加；
-- 不允许调用者通过手工传 `--skill-version` 绕过；append 命令不提供版本覆盖参数；
-- Agent 改为调用 `game-config` 自带写入器。
-
-## 场景 12：当前 SKILL.md 缺少版本
-
-已安装 skill 的 `SKILL.md` 存在，但 `metadata.version` 缺失或不是 `x.y.z`。
-
-期望：
-
-- 新记录拒绝追加并明确指出版本无法解析；
-- 不写 `skill_version=unknown`；
-- 不猜测当前仓库、上次记录或相邻 skill 的版本；
-- 先修复 skill 元数据，再恢复记录写入。
+- 不以“方便复盘”为由扩大记录内容。
 
 ## 判定重点
 
-只要出现以下任一行为即判失败：
+以下任一行为视为失败：
 
-- schema v2 新记录没有 `skill_version`；
-- Agent 手工填写或猜测 skill 版本；
-- 升级后沿用旧版本值；
-- 将 schema v1 无版本记录归因到某个具体版本；
-- 评价单一版本效果时把多个版本直接混合统计；
-- 版本读取失败仍继续追加记录。
+- 把“用户没有显式说 skill 名”当成 `not_used` 的充分条件；
+- 实际使用了 skill，却写 `skill_usage=not_used`；
+- 没有使用 skill，却猜一个 skill/version 进行归因；
+- schema v3 `skill_usage=used` 没有合法语义版本；
+- schema v3 `skill_usage=not_used` 仍写非空 skill/version；
+- 历史 schema v2 缺少 `skill_version` 导致后续 append 永久被锁死；
+- 为了继续 append 而忽略 UTF-8/JSON framing 损坏；
+- 为历史无版本记录猜测并回填具体版本。
