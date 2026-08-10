@@ -13,8 +13,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 UNKNOWN = "unknown"
+NOT_APPLICABLE = "not_applicable"
 MAX_TEXT_LENGTH = 1000
 MAX_QUERY_TAIL = 200
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -44,6 +45,7 @@ IMPROVEMENT_TARGETS = (
     "project_context",
     "none",
 )
+SKILL_USAGES = ("used", "not_used")
 
 
 def bounded(value: str | None, field: str, *, allow_empty: bool = True) -> str:
@@ -108,6 +110,7 @@ def read_current_skill_identity(expected_skill: str) -> tuple[str, str]:
 
 
 def decode_jsonl_line(path: Path, line_number: int, raw: bytes) -> dict[str, Any] | None:
+    """Decode only storage-level JSONL structure, without enforcing record schema."""
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
@@ -124,17 +127,56 @@ def decode_jsonl_line(path: Path, line_number: int, raw: bytes) -> dict[str, Any
         raise ValueError(f"{path}:{line_number} is not valid JSON: {exc}") from exc
     if not isinstance(value, dict):
         raise ValueError(f"{path}:{line_number} must contain one JSON object")
-    if value.get("schema_version") == 2:
+    return value
+
+
+def validate_entry_schema(path: Path, line_number: int, value: dict[str, Any]) -> None:
+    """Validate version/skill attribution semantics for explicit health checks."""
+    schema_version = value.get("schema_version")
+    if schema_version == 1:
+        return
+    if schema_version == 2:
         skill_version = value.get("skill_version")
         if not isinstance(skill_version, str) or not SEMVER_RE.fullmatch(skill_version):
             raise ValueError(
                 f"{path}:{line_number} schema v2 requires semantic skill_version"
             )
-    return value
+        return
+    if schema_version == 3:
+        usage = value.get("skill_usage")
+        if usage not in SKILL_USAGES:
+            raise ValueError(
+                f"{path}:{line_number} schema v3 requires skill_usage=used|not_used"
+            )
+        skill = value.get("skill")
+        skill_version = value.get("skill_version")
+        if usage == "used":
+            if not isinstance(skill, str) or not skill.strip():
+                raise ValueError(
+                    f"{path}:{line_number} schema v3 skill_usage=used requires skill"
+                )
+            if not isinstance(skill_version, str) or not SEMVER_RE.fullmatch(skill_version):
+                raise ValueError(
+                    f"{path}:{line_number} schema v3 skill_usage=used requires semantic skill_version"
+                )
+        else:
+            if skill is not None or skill_version is not None:
+                raise ValueError(
+                    f"{path}:{line_number} schema v3 skill_usage=not_used requires "
+                    "skill=null and skill_version=null"
+                )
+        return
+    raise ValueError(
+        f"{path}:{line_number} has unsupported schema_version={schema_version!r}"
+    )
 
 
-def validate_existing_record(path: Path) -> None:
-    """Validate internally without returning historical content to the Agent."""
+def validate_append_safety(path: Path) -> None:
+    """Block only storage corruption that would break JSONL framing/UTF-8.
+
+    Historical schema mistakes are independent rows and must not make a valid
+    later row impossible to append.
+    """
     if not path.exists():
         return
     if not path.is_file():
@@ -144,10 +186,25 @@ def validate_existing_record(path: Path) -> None:
             decode_jsonl_line(path, line_number, raw)
 
 
+def validate_existing_record(path: Path) -> None:
+    """Strict health check: storage plus schema semantics for every non-empty row."""
+    if not path.exists():
+        return
+    if not path.is_file():
+        raise ValueError(f"record path is not a file: {path}")
+    with path.open("rb") as handle:
+        for line_number, raw in enumerate(handle, start=1):
+            value = decode_jsonl_line(path, line_number, raw)
+            if value is not None:
+                validate_entry_schema(path, line_number, value)
+
+
 def append_single_write(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    validate_existing_record(path)
-    raw = (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+    validate_append_safety(path)
+    raw = (
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
     flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
     if hasattr(os, "O_BINARY"):
         flags |= os.O_BINARY
@@ -162,9 +219,16 @@ def append_single_write(path: Path, payload: dict[str, Any]) -> None:
 
 
 def build_entry(args: argparse.Namespace) -> dict[str, Any]:
-    skill, skill_version = read_current_skill_identity(
-        bounded(args.skill, "skill", allow_empty=False)
-    )
+    if args.no_skill:
+        skill = None
+        skill_version = None
+        skill_usage = "not_used"
+    else:
+        skill, skill_version = read_current_skill_identity(
+            bounded(args.skill, "skill", allow_empty=False)
+        )
+        skill_usage = "used"
+
     root_cause = bounded(args.root_cause, "root_cause") or (
         "not_applicable" if args.trigger == "initial_generation" else UNKNOWN
     )
@@ -175,6 +239,7 @@ def build_entry(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
         "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "skill_usage": skill_usage,
         "skill": skill,
         "skill_version": skill_version,
         "runtime": bounded(args.runtime, "runtime") or UNKNOWN,
@@ -207,21 +272,49 @@ def iter_entries(path: Path) -> Iterable[dict[str, Any]]:
             try:
                 value = decode_jsonl_line(path, line_number, raw)
             except ValueError as exc:
-                print(f"warning: skipped invalid record: {exc}", file=sys.stderr)
+                print(f"warning: skipped unreadable record: {exc}", file=sys.stderr)
                 continue
-            if value is not None:
-                yield value
+            if value is None:
+                continue
+            try:
+                validate_entry_schema(path, line_number, value)
+            except ValueError as exc:
+                print(
+                    f"warning: legacy/invalid schema row retained as best-effort data: {exc}",
+                    file=sys.stderr,
+                )
+            yield value
 
 
-def entry_skill_version(entry: dict[str, Any]) -> str:
-    value = entry.get("skill_version")
+def entry_skill(entry: dict[str, Any]) -> str:
+    if entry.get("schema_version") == 3 and entry.get("skill_usage") == "not_used":
+        return "none"
+    value = entry.get("skill")
     return value if isinstance(value, str) and value else UNKNOWN
 
 
+def entry_skill_version(entry: dict[str, Any]) -> str:
+    if entry.get("schema_version") == 3 and entry.get("skill_usage") == "not_used":
+        return NOT_APPLICABLE
+    value = entry.get("skill_version")
+    if isinstance(value, str) and SEMVER_RE.fullmatch(value):
+        return value
+    return UNKNOWN
+
+
+def entry_skill_usage(entry: dict[str, Any]) -> str:
+    if entry.get("schema_version") == 3:
+        value = entry.get("skill_usage")
+        return value if value in SKILL_USAGES else UNKNOWN
+    return "used" if entry_skill(entry) != UNKNOWN else UNKNOWN
+
+
 def matches(entry: dict[str, Any], args: argparse.Namespace) -> bool:
-    if args.skill and entry.get("skill") != args.skill:
+    if args.skill and entry_skill(entry) != args.skill:
         return False
     if args.skill_version and entry_skill_version(entry) != args.skill_version:
+        return False
+    if getattr(args, "skill_usage", None) and entry_skill_usage(entry) != args.skill_usage:
         return False
     if args.trigger and entry.get("trigger") != args.trigger:
         return False
@@ -264,7 +357,7 @@ def command_check(args: argparse.Namespace) -> int:
     except (OSError, ValueError) as exc:
         print(f"record check failed: {exc}", file=sys.stderr)
         return 1
-    print(f"valid UTF-8 JSONL: {path}")
+    print(f"valid UTF-8 JSONL and record schema: {path}")
     return 0
 
 
@@ -300,6 +393,7 @@ def command_stats(args: argparse.Namespace) -> int:
     counters = {
         "skill": Counter(),
         "skill_version": Counter(),
+        "skill_usage": Counter(),
         "skill_release": Counter(),
         "schema_version": Counter(),
         "trigger": Counter(),
@@ -311,10 +405,12 @@ def command_stats(args: argparse.Namespace) -> int:
         if not matches(entry, args):
             continue
         total += 1
-        skill = str(entry.get("skill", UNKNOWN))
+        skill = entry_skill(entry)
         skill_version = entry_skill_version(entry)
+        usage = entry_skill_usage(entry)
         counters["skill"][skill] += 1
         counters["skill_version"][skill_version] += 1
+        counters["skill_usage"][usage] += 1
         counters["skill_release"][f"{skill}@{skill_version}"] += 1
         counters["schema_version"][str(entry.get("schema_version", UNKNOWN))] += 1
         counters["trigger"][str(entry.get("trigger", UNKNOWN))] += 1
@@ -331,11 +427,15 @@ def command_stats(args: argparse.Namespace) -> int:
 
 
 def add_filters(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--skill")
+    parser.add_argument(
+        "--skill",
+        help="exact skill name; use 'none' for schema v3 records created without a skill",
+    )
     parser.add_argument(
         "--skill-version",
-        help="exact skill version; use 'unknown' only to inspect legacy records without a version",
+        help="exact version; legacy invalid/missing versions are 'unknown', no-skill is 'not_applicable'",
     )
+    parser.add_argument("--skill-usage", choices=SKILL_USAGES)
     parser.add_argument("--trigger", choices=TRIGGERS)
     parser.add_argument("--outcome", choices=OUTCOMES)
     parser.add_argument("--improvement-target", choices=IMPROVEMENT_TARGETS)
@@ -348,9 +448,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    append_parser = subparsers.add_parser("append", help="append exactly one UTF-8 JSONL record")
+    append_parser = subparsers.add_parser(
+        "append", help="append exactly one UTF-8 JSONL record"
+    )
     append_parser.add_argument("--record", required=True)
-    append_parser.add_argument("--skill", required=True)
+    skill_group = append_parser.add_mutually_exclusive_group(required=True)
+    skill_group.add_argument("--skill")
+    skill_group.add_argument(
+        "--no-skill",
+        action="store_true",
+        help="record a change where no Agent skill was actually used",
+    )
     append_parser.add_argument("--runtime", default=UNKNOWN)
     append_parser.add_argument("--model", default=UNKNOWN)
     append_parser.add_argument("--reasoning-effort", default=UNKNOWN)
@@ -373,7 +481,7 @@ def build_parser() -> argparse.ArgumentParser:
     append_parser.set_defaults(func=command_append)
 
     check_parser = subparsers.add_parser(
-        "check", help="validate that an existing record is UTF-8 JSONL"
+        "check", help="strictly validate UTF-8 JSONL plus record schema"
     )
     check_parser.add_argument("--record", required=True)
     check_parser.set_defaults(func=command_check)
