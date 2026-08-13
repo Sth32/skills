@@ -2,9 +2,12 @@ name: Validate skills
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch:
   schedule:
-    # Batch validation of main every 30 minutes instead of once per push.
+    # Batch validation of unchanged main every 30 minutes as a fallback.
     - cron: "17,47 * * * *"
 
 permissions:
@@ -27,7 +30,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Pull requests and manual runs always validate immediately.
+          # Pull requests, pushes, and manual runs validate immediately.
           if [[ "${{ github.event_name }}" != "schedule" ]]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
