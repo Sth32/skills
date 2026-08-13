@@ -71,8 +71,8 @@ SCAFFOLD_RUNTIME_CHAIN_RULE = (
 IMPLEMENT_RUNTIME_CHAIN_RULE = (
     "**真实消费链验证硬限制：对本工作单元实际涉及的接口、配置、权限、异步或持久化路径，不能以“定义存在/代码已写/测试局部通过”作为闭环。"
     "应按风险追踪真实链路：定义/配置真源 → 生成/注册 → 暴露或寻址 → 权限检查对象 → 最终执行对象 → 运行时消费/副作用 → 状态生命周期 →"
-    " 异步与失败路径 → 持久化/重启恢复 → 发布/回滚；只检查当前功能实际经过的节点。重点证明授权对象与执行对象一致、旧异步回包不会覆盖新状态、"
-    " target missing/closing/expire 等终态能封口、时间事实使用一致时钟，以及 rollback 是可执行路径而非文档口号。缺少关键证据时保持未完成或显式风险。**"
+    "异步与失败路径 → 持久化/重启恢复 → 发布/回滚；只检查当前功能实际经过的节点。重点证明授权对象与执行对象一致、旧异步回包不会覆盖新状态、"
+    "target missing/closing/expire 等终态能封口、时间事实使用一致时钟，以及 rollback 是可执行路径而非文档口号。缺少关键证据时保持未完成或显式风险。**"
 )
 
 CLIENT_REACHABILITY_RULE = (
@@ -106,13 +106,6 @@ TARGETED_RULES = {
     ),
 }
 
-TARGETED_MARKERS = {
-    "game-tech-clarify": "**跨边界通信合同硬限制：",
-    "game-scaffold": "**框架真实链路硬限制：",
-    "game-implement": "**真实消费链验证硬限制：",
-    "game-client-handoff": "**客户端合同可达性硬限制：",
-}
-
 README_VALIDATOR_PARAGRAPH = (
     "验证器会要求每个 `SKILL.md` 包含统一的文档更新、结构性变更影响传播、阶段完成一致性与记录硬限制；"
     "对技术澄清、框架、完整实现和客户端对接技能额外检查跨层合同/真实消费链规则；"
@@ -126,8 +119,7 @@ def bump_patch_version(text: str) -> str:
     if not match:
         raise ValueError("missing semantic metadata version")
     major, minor, patch = map(int, match.group(2, 3, 4))
-    replacement = f'{match.group(1)}{major}.{minor}.{patch + 1}{match.group(5)}'
-    return text[: match.start()] + replacement + text[match.end() :]
+    return text[: match.start()] + f'{match.group(1)}{major}.{minor}.{patch + 1}{match.group(5)}' + text[match.end() :]
 
 
 def replace_or_insert_rule(
@@ -159,43 +151,26 @@ def insert_after_exact(text: str, anchor: str, block: str, path: Path) -> tuple[
 
 def patch_skill(text: str, path: Path) -> str:
     changed = False
-
-    text, did_change = replace_or_insert_rule(
-        text,
-        DOCUMENT_IMPACT_RULE,
-        IMPACT_RULE_RE,
-        after_re=TIMING_RULE_RE,
-        path=path,
-        label="impact rule",
+    text, did = replace_or_insert_rule(
+        text, DOCUMENT_IMPACT_RULE, IMPACT_RULE_RE,
+        after_re=TIMING_RULE_RE, path=path, label="impact rule",
     )
-    changed |= did_change
-
-    text, did_change = replace_or_insert_rule(
-        text,
-        DOCUMENT_CONSISTENCY_RULE,
-        CONSISTENCY_RULE_RE,
-        after_re=IMPACT_RULE_RE,
-        path=path,
-        label="consistency rule",
+    changed |= did
+    text, did = replace_or_insert_rule(
+        text, DOCUMENT_CONSISTENCY_RULE, CONSISTENCY_RULE_RE,
+        after_re=IMPACT_RULE_RE, path=path, label="consistency rule",
     )
-    changed |= did_change
-
-    text, did_change = replace_or_insert_rule(
-        text,
-        DOCUMENT_RECORD_RULE,
-        RECORD_RULE_RE,
-        after_re=CONSISTENCY_RULE_RE,
-        path=path,
-        label="record rule",
+    changed |= did
+    text, did = replace_or_insert_rule(
+        text, DOCUMENT_RECORD_RULE, RECORD_RULE_RE,
+        after_re=CONSISTENCY_RULE_RE, path=path, label="record rule",
     )
-    changed |= did_change
+    changed |= did
 
     target = TARGETED_RULES.get(path.parent.name)
     if target:
-        rule, anchor = target
-        text, did_change = insert_after_exact(text, anchor, rule, path)
-        changed |= did_change
-
+        text, did = insert_after_exact(text, target[1], target[0], path)
+        changed |= did
     return bump_patch_version(text) if changed else text
 
 
@@ -211,10 +186,11 @@ def patch_readme(text: str) -> str:
         if IMPACT_RULE_RE.search(text):
             text = IMPACT_RULE_RE.sub(DOCUMENT_IMPACT_RULE, text, count=1)
         else:
-            timing = TIMING_RULE_RE.search(text)
-            if not timing:
-                raise ValueError("README: timing rule anchor not found")
-            text = text[: timing.end()] + "\n\n" + DOCUMENT_IMPACT_RULE + text[timing.end() :]
+            anchor = "\n## 文档变更记录\n"
+            if anchor not in text:
+                raise ValueError("README: document-record section anchor not found")
+            section = "\n## 结构性变更影响传播\n\n" + DOCUMENT_IMPACT_RULE + "\n"
+            text = text.replace(anchor, section + anchor, 1)
 
     if DOCUMENT_RECORD_RULE not in text:
         if RECORD_RULE_RE.search(text):
@@ -228,14 +204,20 @@ def patch_readme(text: str) -> str:
         if CONSISTENCY_RULE_RE.search(text):
             text = CONSISTENCY_RULE_RE.sub(DOCUMENT_CONSISTENCY_RULE, text, count=1)
         else:
-            text = insert_rule_after_heading(
-                text, "## 阶段完成一致性收敛", DOCUMENT_CONSISTENCY_RULE, "consistency"
-            )
+            heading = "## 阶段完成一致性收敛"
+            if heading in text:
+                text = insert_rule_after_heading(text, heading, DOCUMENT_CONSISTENCY_RULE, "consistency")
+            else:
+                anchor = "\n## 文档变更记录\n"
+                text = text.replace(
+                    anchor,
+                    "\n## 阶段完成一致性收敛\n\n" + DOCUMENT_CONSISTENCY_RULE + "\n" + anchor,
+                    1,
+                )
 
     if README_VALIDATOR_PARAGRAPH not in text:
         validation_re = re.compile(
-            r"验证器会要求每个 `SKILL\.md` 包含.*?(?=\n\n`evals/)",
-            re.DOTALL,
+            r"验证器会要求每个 `SKILL\.md` 包含.*?(?=\n\n`evals/)", re.DOTALL
         )
         if not validation_re.search(text):
             raise ValueError("README: validator description anchor not found")
@@ -248,8 +230,7 @@ def validator_constant(name: str, value: str) -> str:
     remaining = value
     while remaining:
         part, remaining = remaining[:100], remaining[100:]
-        escaped = part.replace("\\", "\\\\").replace('"', '\\"')
-        parts.append(f'    "{escaped}"')
+        parts.append(f'    "{part.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))}"')
     return f"{name} = (\n" + "\n".join(parts) + "\n)"
 
 
@@ -265,10 +246,7 @@ def read_string_constants(text: str, names: set[str]) -> dict[str, str]:
         target = node.targets[0]
         if not isinstance(target, ast.Name) or target.id not in names:
             continue
-        try:
-            value = ast.literal_eval(node.value)
-        except (ValueError, TypeError) as exc:
-            raise ValueError(f"validator: {target.id} is not a literal string") from exc
+        value = ast.literal_eval(node.value)
         if isinstance(value, str):
             result[target.id] = value
     return result
@@ -299,16 +277,6 @@ def patch_validator(text: str) -> str:
     for name, value in expected.items():
         if actual.get(name) != value:
             text = replace_validator_constant(text, name, value)
-
-    if 'CANONICAL_RECORD_WRITER = ROOT / "scripts" / "document_record.py"' not in text:
-        anchor = 'SKILLS_DIR = ROOT / "skills"\n'
-        if anchor not in text:
-            raise ValueError("validator: skills-dir anchor not found")
-        text = text.replace(
-            anchor,
-            anchor + 'CANONICAL_RECORD_WRITER = ROOT / "scripts" / "document_record.py"\n',
-            1,
-        )
 
     impact_check = (
         '    if DOCUMENT_IMPACT_RULE not in text:\n'
@@ -350,22 +318,6 @@ def patch_validator(text: str) -> str:
         if anchor not in text:
             raise ValueError("validator: record-rule check anchor not found")
         text = text.replace(anchor, anchor + targeted_check, 1)
-
-    required_snippet = (
-        '    bundled_writer = skill_dir / "scripts" / "document_record.py"\n'
-        '    if not bundled_writer.is_file():\n'
-        '        errors.append("missing bundled UTF-8 document record writer")\n'
-        '    elif bundled_writer.read_bytes() != CANONICAL_RECORD_WRITER.read_bytes():\n'
-        '        errors.append("bundled document record writer differs from canonical writer")\n'
-    )
-    if required_snippet not in text:
-        anchor = (
-            '    if DOCUMENT_RECORD_RULE not in text:\n'
-            '        errors.append("missing canonical document change record rule")\n'
-        )
-        if anchor not in text:
-            raise ValueError("validator: record-rule check anchor not found")
-        text = text.replace(anchor, anchor + required_snippet, 1)
     return text
 
 
@@ -401,7 +353,6 @@ def main() -> int:
             new = patch_skill(old, skill_file)
             if write_text_if_changed(skill_file, new, check=args.check):
                 changed.append(skill_file)
-
             bundled_writer = skill_file.parent / BUNDLED_WRITER_RELATIVE
             if write_bytes_if_changed(bundled_writer, writer_bytes, check=args.check):
                 changed.append(bundled_writer)
@@ -413,7 +364,7 @@ def main() -> int:
         old_validator = VALIDATOR.read_text(encoding="utf-8")
         if write_text_if_changed(VALIDATOR, patch_validator(old_validator), check=args.check):
             changed.append(VALIDATOR)
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, SyntaxError) as exc:
         print(f"policy application failed: {exc}", file=sys.stderr)
         return 2
 
