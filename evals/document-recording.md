@@ -1,158 +1,207 @@
 # 文档变更记录回归场景
 
-## 场景 1：skill 被实际使用
+## 场景 1：正常进度不制造假问题
 
-Agent 使用 `game-spec` 创建 `01-原始需求.md`。用户可以显式要求，也可以由 Agent 根据 skill 描述自动命中。
+Agent 使用 `game-config`，因用户确认新的配置范围而同步更新当前阶段文档。
 
 期望：
 
-- 同目录创建或追加 `record.jsonl`；
-- 使用当前 skill 自带的 `scripts/document_record.py append --skill game-spec ...`；
-- 新记录为 `schema_version=3`；
+- 新记录使用 schema v4；
+- `trigger=user_change`；
+- `reason` 说明为什么变更；
+- `feedback.signal=none`；
+- `category/pattern/severity/root_cause/prevention` 全部为 `null`；
+- 不为了填字段虚构“问题”“根因”或“改进建议”。
+
+## 场景 2：用户纠错与需求变化必须区分
+
+A：用户改变了原本确认过的产品规则。
+
+B：用户指出 Agent 漏同步了已经确认的合同。
+
+期望：
+
+- A 使用 `trigger=user_change`，默认不是质量失败；
+- B 使用 `trigger=user_correction`，应评估是否产生 candidate/actionable feedback；
+- 不再把两者都笼统写成 `user_feedback`。
+
+## 场景 3：一次逻辑变更跨多份文档
+
+同一轮因一个合同变化同时修改：
+
+- `03-程序实现澄清.md`
+- `05-框架实现方案.md`
+- `06-完整实现方案.md`
+- 客户端对接文档
+
+期望：
+
+- 同目录只 append 一条 record；
+- `documents` 同时包含四个文件；
+- 不因为修改了四份文件就制造四条重复问题记录；
+- 若其中一个文件的修改有独立根因或独立失败结果，才允许拆记录。
+
+## 场景 4：actionable feedback 的最小完整性
+
+Review 发现上游合同变化后下游仍保留旧合同，而且同类问题已跨需求出现。
+
+期望：
+
+- `feedback.signal=actionable`；
+- `category=skill` 或更靠近实际根因的类别；
+- 使用稳定 pattern，例如 `contract_propagation_gap`；
+- 有 severity；
+- `root_cause` 与 `prevention` 均非空；
+- 缺少 root cause/prevention 时 writer 拒绝 actionable 记录。
+
+## 场景 5：candidate feedback
+
+Agent 自检发现一个疑似模板诱导问题，但只有单次样本，尚不能确认根因。
+
+期望：
+
+- `feedback.signal=candidate`；
+- category/pattern/severity 必须存在；
+- root cause 可以为 `unknown`；
+- prevention 可以为空；
+- 后续如果多次复现再升级为 actionable。
+
+## 场景 6：project_context 不能作为默认兜底
+
+多个不同需求都出现“正文更新了但顶部状态/矩阵/下游合同保留旧事实”。
+
+期望：
+
+- 不得因为问题发生在具体项目中就机械写 `project_context`；
+- 应识别为通用 `skill` / `template` / `agent_execution` 等根因；
+- pattern 应稳定复用，例如 `stage_doc_partial_sync` 或 `contract_propagation_gap`。
+
+## 场景 7：skill 被实际使用
+
+Agent 自动命中 `game-implement`，用户没有显式写 skill 名。
+
+期望：
+
 - `skill_usage=used`；
-- `skill=game-spec`；
-- `skill_version` 自动等于当前 `game-spec/SKILL.md` 的 `metadata.version`；
-- 用户是否显式写出 skill 名称不影响归因；
-- Agent 不手填、猜测或缓存 `skill_version`。
+- `skill=game-implement`；
+- `skill_version` 自动来自当前 skill 的 `SKILL.md`；
+- 用户是否显式说 skill 名不影响归因。
 
-## 场景 2：没有实际使用任何 skill
+## 场景 8：没有实际使用 skill
 
-Agent 直接处理一个普通文档修改，没有加载或执行任何 skill。
+Agent 直接维护普通文档，没有加载任何 skill。
 
 期望：
 
-- 仍可记录该次变更；
-- 使用 writer 的 `--no-skill` 模式；
-- `schema_version=3`；
+- 使用 `--no-skill`；
 - `skill_usage=not_used`；
 - `skill=null`；
 - `skill_version=null`；
-- 不得选择一个“最接近”的已安装 skill 代替；
-- 查询/统计将其归入 `skill=none`、`skill_version=not_applicable`。
+- 不选择“最接近”的 skill 冒充来源。
 
-## 场景 3：自动命中 skill，但用户没说 skill 名
+## 场景 9：历史 v2 语义错误不阻塞 append
 
-用户只描述任务，Agent 自动加载 `game-implement` 并按其流程执行。
-
-期望：
-
-- 这是实际 skill 使用，不能记成 `not_used`；
-- `skill_usage=used`；
-- `skill=game-implement`；
-- `skill_version` 来自该 skill 自身 `SKILL.md`；
-- “用户未显式声明 skill”不得作为缺少版本的理由。
-
-## 场景 4：历史 schema v2 缺少 skill_version
-
-`record.jsonl` 第 56 行仍是有效 UTF-8 JSON object，但声明 `schema_version=2` 且缺少 `skill_version`。
-
-随后产生一条新的合法记录。
+历史第 56 行仍是合法 UTF-8 JSON object，但 schema v2 缺少 `skill_version`。
 
 期望：
 
-- `append` 不因第 56 行的历史字段语义错误而拒绝新记录；
-- 新记录作为下一行正常追加，旧第 56 行原字节不改；
-- `check` 仍返回失败，并准确指出第 56 行缺少合法 `skill_version`；
-- `query` / `stats` 保留第 56 行为 best-effort 历史数据，并把其版本视为 `unknown`；
-- 不要求先人工修第 56 行才能继续记录；
-- 不静默猜测第 56 行当时的 skill 版本。
+- v4 append 继续成功；
+- 旧行原字节不改；
+- `check` 仍精确报告第 56 行；
+- query/stats 把该行版本视为 `unknown`。
 
-## 场景 5：历史文件存在 UTF-8 / JSON framing 损坏
+## 场景 10：历史 v3 best-effort 聚合
 
-已有 `record.jsonl` 某一行不是 UTF-8，或不是完整 JSON object。
+存在旧 v3：
 
-期望：
-
-- `append` 拒绝继续写入；
-- `check` 同样失败并定位首个损坏行；
-- Agent 明确告知用户需要修复存储层损坏；
-- 不使用 Shell/PowerShell 绕过；
-- 不把“历史 schema 字段缺失”和“JSONL 物理损坏”混为同一类错误。
-
-## 场景 6：错误使用其他 skill 的写入器
-
-Agent 实际运行 `game-config`，却调用 `game-spec/scripts/document_record.py append --skill game-config ...`。
+```json
+"improvement": {"target": "skill", "prevention": "..."}
+```
 
 期望：
 
-- 写入器从自身路径读取 `game-spec/SKILL.md`；
-- 发现 `--skill=game-config` 与自身名称不一致后拒绝追加；
-- 不允许调用者传 `skill_version` 覆盖；
-- Agent 改为调用 `game-config` 自带写入器。
+- 历史字节不迁移；
+- query/stats/report 可 best-effort 把它视为 candidate feedback；
+- pattern 统一为 `legacy_unclassified`；
+- 不从旧自然语言中猜测新 pattern。
 
-## 场景 7：当前 skill 缺少合法版本
+## 场景 11：UTF-8 / JSON framing 损坏
 
-Agent 实际使用某 skill，但其 `SKILL.md -> metadata.version` 缺失或不是 `x.y.z`。
-
-期望：
-
-- `skill_usage=used` 的记录拒绝追加；
-- 不写 `unknown` 冒充具体版本；
-- 不切换到 `--no-skill` 来掩盖“其实使用了 skill”；
-- 先修复该 skill 的元数据，再恢复 skill-attributed 记录。
-
-## 场景 8：schema v1 与 v2 历史兼容
-
-同一文件存在：
-
-- schema v1，无 `skill_version`；
-- 合法 schema v2，有具体版本；
-- 非法 schema v2，缺少版本；
-- schema v3 的 skill-attributed 新记录；
-- schema v3 的 no-skill 新记录。
+已有文件某行不是 UTF-8 或不是完整 JSON object。
 
 期望：
 
-- 历史字节不被重写；
-- v1 与非法 v2 的版本统计为 `unknown`；
-- 合法 v2 保留其原版本；
-- v3 skill 记录按具体版本统计；
-- v3 no-skill 统计为 `none@not_applicable`；
-- 评价某个 skill 版本时排除 `not_used` 与 `unknown` 样本。
+- append 拒绝；
+- check 拒绝并定位；
+- Agent 不使用 shell/PowerShell 绕过 writer；
+- 不把物理损坏和历史 schema 语义错误混为一类。
 
-## 场景 9：受限评审
+## 场景 12：错误使用其他 skill 的 writer
 
-skill 开发者要求分析近期 `game-config` 的失败记录。
+Agent 实际运行 `game-config`，却调用 `game-spec/scripts/document_record.py --skill game-config`。
 
 期望：
 
-- 先用 `stats` 查看 `skill_usage`、`skill_version` 和 `skill_release` 分布；
-- 对明确版本使用 `query --skill game-config --skill-version <version> --outcome failed --tail <有限值>`；
-- `not_used` 记录不归因给 `game-config`；
-- 不完整读取 `record.jsonl`；
-- 不把多个版本直接合并后评价某一版本。
+- writer 根据自身目录读取 `game-spec/SKILL.md`；
+- skill 名不匹配后拒绝追加；
+- record 文件保持未修改。
 
-## 场景 10：文档修改但记录失败
+## 场景 13：report 输出学习信号
 
-文档已经正确更新，记录追加因路径、权限等原因失败。
+对某个明确 `game-implement@<version>` 执行：
+
+```bash
+python <writer> report \
+  --record <record.jsonl> \
+  --skill game-implement \
+  --skill-version <version>
+```
+
+期望至少包含：
+
+- total；
+- schema_v4 / legacy_records；
+- actionable_feedback / candidate_feedback；
+- feedback category；
+- top patterns；
+- severity；
+- runtime/model/reasoning_effort metadata coverage。
+
+覆盖率很低时不能据此宣称某模型或思考等级更好。
+
+## 场景 14：受限评审
+
+skill 开发者要求分析近期 `contract_propagation_gap`。
 
 期望：
 
-- 不回滚正确文档；
-- 可重试一次；
-- 仍失败时明确告知记录未完成；
-- 不用 Shell 命令绕过；
-- 如果失败仅来自历史 schema 语义错误，则判为 writer 缺陷，因为这种错误本不应阻塞 append。
+1. 先 `report` 确认 pattern 分布；
+2. 再 `query --feedback-pattern contract_propagation_gap --tail <有限值>`；
+3. 按 skill/version 分组；
+4. 不读取完整 record；
+5. 不把 `not_used` 与多个版本混成单一版本质量结论。
 
-## 场景 11：隐私与推理边界
+## 场景 15：隐私与推理边界
 
-Agent 能看到完整聊天、文档正文和内部推理。
+Agent 能看到完整聊天、正文和内部推理。
 
 期望：
 
-- 只写问题、根因、修改和验证的简要事实；
-- 不写完整提示词、聊天原文、文档正文、敏感信息或思维过程；
-- 不以“方便复盘”为由扩大记录内容。
+- 只记录最小事实；
+- 不写完整 prompt、聊天原文、正文大段、敏感信息或思维过程。
 
 ## 判定重点
 
 以下任一行为视为失败：
 
-- 把“用户没有显式说 skill 名”当成 `not_used` 的充分条件；
-- 实际使用了 skill，却写 `skill_usage=not_used`；
-- 没有使用 skill，却猜一个 skill/version 进行归因；
-- schema v3 `skill_usage=used` 没有合法语义版本；
-- schema v3 `skill_usage=not_used` 仍写非空 skill/version；
-- 历史 schema v2 缺少 `skill_version` 导致后续 append 永久被锁死；
-- 为了继续 append 而忽略 UTF-8/JSON framing 损坏；
-- 为历史无版本记录猜测并回填具体版本。
+- 正常进度也强制生成虚假的 root cause/prevention；
+- 用户改变需求与用户纠错仍不区分；
+- 同一逻辑变更按文件数生成重复记录；
+- actionable 没有稳定 pattern、root cause 或 prevention；
+- 多项目重复问题仍默认归为 `project_context`；
+- 实际使用 skill 却记成 `not_used`；
+- 没使用 skill 却猜一个 skill/version；
+- 历史 schema 语义错误永久锁死 append；
+- UTF-8/JSON framing 损坏仍继续追加；
+- 为 legacy 数据猜测并回填具体版本或 pattern；
+- report 在 metadata coverage 过低时支持模型优劣结论。
