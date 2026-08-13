@@ -2,7 +2,7 @@
 name: game-implement
 description: Use when a game feature already has an approved runnable implementation skeleton and needs its remaining product behavior, edge cases, failure handling, compatibility, tests, and operational details completed without casually redesigning the established framework.
 metadata:
-  version: "0.1.10"
+  version: "0.1.11"
 ---
 
 # 完成游戏功能实现
@@ -13,6 +13,8 @@ metadata:
 
 **核心原则：沿既定框架完成行为闭环；复杂实现按可 review 的纵向闭环分步推进；真正可以独立推进的范围拆工作单元；发现框架根因问题时修订框架，不在细节层堆补丁。**
 
+**真实消费链验证硬限制：对本工作单元实际涉及的接口、配置、权限、异步或持久化路径，不能以“定义存在/代码已写/测试局部通过”作为闭环。应按风险追踪真实链路：定义/配置真源 → 生成/注册 → 暴露或寻址 → 权限检查对象 → 最终执行对象 → 运行时消费/副作用 → 状态生命周期 →异步与失败路径 → 持久化/重启恢复 → 发布/回滚；只检查当前功能实际经过的节点。重点证明授权对象与执行对象一致、旧异步回包不会覆盖新状态、target missing/closing/expire 等终态能封口、时间事实使用一致时钟，以及 rollback 是可执行路径而非文档口号。缺少关键证据时保持未完成或显式风险。**
+
 **单文档硬限制：当前工作单元在本阶段只能维护一份完整实现方案过程文档。** 不得为同一工作单元的不同实现步骤另建实施计划、步骤文档、需求矩阵、测试报告、验证清单、上线说明、风险清单或完成总结。不同工作单元可分别拥有自己的 `06`；代码、测试、迁移、diff 和运行日志属于实际产物或证据，不算过程文档。
 
 **分支工作流硬限制：`01-原始需求.md` 永远只有一份。`01` 完成后到 `game-review` 启动前，若当前实现范围能够独立推进、独立阻塞或独立 review，可拆成稳定工作单元 `U01`、`U02`……；所有文件仍位于同一个 `docs/requirements/<feature>/` 目录，禁止增加分支子目录。没有真实分支时继续使用 `06-完整实现方案.md`。第一次拆分时创建 `00-工作流索引.md`，只记录工作单元 ID、范围、依赖、当前阶段和当前文档；串行、并行与多前驱只由依赖表达，不把拓扑编码进 ID。分支文档命名为 `06-<Uxx>-<主题>-完整实现方案.md`。**
@@ -20,6 +22,8 @@ metadata:
 在分支工作流中，下述“本阶段唯一文档”指当前工作单元的唯一 `06` 权威文档。`00-工作流索引.md` 只做路由；一个工作单元完成不代表所有工作单元完成，也不代表可以开始完整 `game-review`。
 
 **文档更新时序硬限制：任何新事实、确认、执行结果或验证结果只要改变本阶段内容，必须在同一轮立即原位更新本阶段唯一文档，并明确告知用户已更新的文件路径；不得等到阶段结束、批次结束或用户再次提醒。发现结论会改变更早阶段文档时，必须主动说明受影响文档和拟修改内容，先获得用户确认，再更新上游文档；未确认前不得静默改写。**
+
+**结构性变更影响传播硬限制：当范围、阶段状态、接口/RPC/事件合同、数据权威、工作单元依赖或配置真源发生变化时，必须在同一轮执行影响扫描，不得只修当前局部段落。当前阶段文档内至少核对顶部元信息、相关正文规则/矩阵、验证结论、阻塞与下一动作；同时定位已有且实际依赖该事实的上下游阶段文档、客户端合同与 `00-工作流索引.md` 中的旧引用。当前阶段和本 skill 允许直接维护的下游内容立即原位更新；若受影响的是需要用户确认才能改写的上游文档，必须明确列出受影响文件、旧事实与拟修改内容并等待确认，不得静默遗漏，也不得把未传播完成的结构性变化描述为已闭环。**
 
 **阶段完成一致性硬限制：在宣布本阶段完成、确认或移交前，必须对本阶段权威文档做一次一致性收敛。同一事项不得同时保留互斥的当前状态、数值、操作要求或验证结论；发现冲突时，必须依据最新用户确认、实际源、代码或配置、生成物以及验证证据判定唯一当前事实并原位改写，删除被覆盖、错误、过时或仅用于过程追踪的内容。若证据不足无法判定，则该事项保持未完成或阻塞，只保留唯一待确认点，不得以“已完成”结束阶段。**
 
@@ -29,7 +33,7 @@ metadata:
 
 **跨 session 可恢复性硬限制：当前工作单元的完整实现方案文档不得依赖当前聊天上下文才能继续实现。** 在开始编码、每个分步 review 边界、暂停或结束当前 session 前，文档必须能明确回答：当前工作单元、实现模式、步骤划分、已确认范围、当前步骤及状态、实际代码基线与关键入口、已完成行为和验证证据、尚未解决的阻塞或决策、下一动作及进入下一步的条件。不得复制共享 `01` 或其他工作单元全文来制造“自包含”；只保留继续实现必需的引用、差异和当前状态。新的 session 必须先用当前文档核对实际代码/diff，发现不一致时以代码事实为依据立即修正文档后再继续。
 
-**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。新记录使用 schema v3，并区分“实际使用 skill”和“未使用 skill”：只要当前 Agent 实际加载/执行了本 skill（即使用户没有显式写出 skill 名称），就必须调用本 skill 自带的 `scripts/document_record.py append --skill <当前skill>`，写入 `skill_usage=used`，`skill_version` 由写入器从当前 `SKILL.md` 的 `metadata.version` 自动读取，禁止 Agent 手填、猜测或沿用历史值；若一次变更实际没有使用任何 skill，才可使用 `--no-skill`，写入 `skill_usage=not_used`、`skill=null`、`skill_version=null`，不得挑选一个“最接近”的 skill 冒充来源。用户是否显式声明 skill 不是归因依据，实际是否加载/执行才是。写入器 append 前只校验已有文件仍可逐行解析为 UTF-8 JSON object；历史行的 schema 字段缺失或语义错误（例如旧 schema v2 缺少 `skill_version`）必须由 `check` 报告，但不得阻塞后续独立追加，也不得静默修改旧行；只有非 UTF-8、非法 JSON、非 object 等存储层损坏才拒绝 append。历史 schema v1 或非法 v2 无版本记录在查询和统计时统一视为 `skill_version=unknown`；no-skill v3 视为 `skill=none`、`skill_version=not_applicable`，不得回填猜测版本。禁止使用 `>`、`>>`、`echo`、PowerShell `Add-Content`/`Set-Content`/`Out-File` 或通用文本写入 API 直接修改 `record.jsonl`，脚本失败时也不得降级绕过。记录至少包含时间、skill usage、skill/版本归因、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。评估滚动更新的 skill 时必须只使用 `skill_usage=used` 且按 `skill_version` 过滤或分组，不能把 no-skill、版本未知或多个版本直接混为同一版本效果。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**
+**文档变更记录硬限制：每次逻辑上的文档变更完成后，在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；同一原因、同一轮、同一目录内的原子变更只记录一次，用 `documents` 列出全部实际变化文件，只有根因、结果或验证边界不同才拆记录。`record.jsonl` 自身追加不触发再次记录。新记录使用 schema v4：必须记录 skill usage/skill/version、运行环境、模型、思考等级、action、documents、trigger、reason、change summary、validation、outcome；正常进度使用 `feedback.signal=none`，不得为了填字段虚构问题、根因或预防建议。只有出现值得后续学习的偏差时才写 feedback：疑似可泛化但证据未足用 `candidate`；已经能定位根因且可形成防复发规则用 `actionable`，并填写稳定可复用的 snake_case `pattern`、severity、category、root_cause 与 prevention。用户改变需求使用 `trigger=user_change`；用户指出 Agent/文档错误使用 `trigger=user_correction`，两者不得混为同一质量信号。跨需求重复、skill 流程遗漏、模板诱导遗漏或 review 发现的通用缺陷不得默认归为 `project_context`；应归到最靠近根因的 `skill`/`template`/`eval`/`tooling`/`agent_execution`，只有确实依赖单一项目缺失事实时才用 `project_context`。只要当前 Agent 实际加载/执行了本 skill，就必须调用本 skill 自带的 `scripts/document_record.py append --skill <当前skill>`，skill version 由写入器从当前 `SKILL.md` 自动读取；实际没有使用任何 skill 才可 `--no-skill`。历史 v1/v2/v3 保持原字节；append 只因非 UTF-8、非法 JSON 或非 object 等存储层损坏而拒绝，历史 schema 语义问题只由 `check` 报告。禁止使用 shell/PowerShell 文本重定向或通用文本 API 绕过写入器。需要评审记录时使用受限 `query`、`stats` 或 `report`，不得把全文注入上下文；评价 skill 必须按 `skill_usage=used` 和明确 `skill_version` 分组，并结合 report 的 metadata coverage 判断模型/运行环境比较是否有足够样本。禁止写入完整提示词、正文、用户敏感信息或思维过程。**
 
 创建或修改 `00-工作流索引.md` 同样必须追加记录；普通实现正文变化若不改变拓扑、当前阶段或当前文档，不重复改写索引。
 

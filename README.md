@@ -103,11 +103,15 @@ docs/features/<feature>.md
 
 在所有 skill 中，统一的“本阶段唯一文档”硬限制在分支模式下解释为：**当前工作单元在当前阶段的唯一权威文档**。它不禁止同一阶段存在其他工作单元的权威文档；`00` 也不属于工作单元阶段正文。
 
+## 结构性变更影响传播
+
+**结构性变更影响传播硬限制：当范围、阶段状态、接口/RPC/事件合同、数据权威、工作单元依赖或配置真源发生变化时，必须在同一轮执行影响扫描，不得只修当前局部段落。当前阶段文档内至少核对顶部元信息、相关正文规则/矩阵、验证结论、阻塞与下一动作；同时定位已有且实际依赖该事实的上下游阶段文档、客户端合同与 `00-工作流索引.md` 中的旧引用。当前阶段和本 skill 允许直接维护的下游内容立即原位更新；若受影响的是需要用户确认才能改写的上游文档，必须明确列出受影响文件、旧事实与拟修改内容并等待确认，不得静默遗漏，也不得把未传播完成的结构性变化描述为已闭环。**
+
 ## 文档变更记录
 
 每个过程文档目录维护一个 append-only 的 `record.jsonl`，用于把实际失误、修正原因和验证结果反馈给 skill 开发者。它是审计元数据，不是第二份阶段文档。分支工作流中的 `00` 和各 `Uxx` 阶段文档同样遵守记录规则。
 
-**文档变更记录硬限制：每次创建、修改、删除或重命名本阶段文档后，必须在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；`record.jsonl` 是审计元数据，不属于阶段过程文档，记录文件自身的追加不触发再次记录。新记录使用 schema v3，并区分“实际使用 skill”和“未使用 skill”：只要当前 Agent 实际加载/执行了本 skill（即使用户没有显式写出 skill 名称），就必须调用本 skill 自带的 `scripts/document_record.py append --skill <当前skill>`，写入 `skill_usage=used`，`skill_version` 由写入器从当前 `SKILL.md` 的 `metadata.version` 自动读取，禁止 Agent 手填、猜测或沿用历史值；若一次变更实际没有使用任何 skill，才可使用 `--no-skill`，写入 `skill_usage=not_used`、`skill=null`、`skill_version=null`，不得挑选一个“最接近”的 skill 冒充来源。用户是否显式声明 skill 不是归因依据，实际是否加载/执行才是。写入器 append 前只校验已有文件仍可逐行解析为 UTF-8 JSON object；历史行的 schema 字段缺失或语义错误（例如旧 schema v2 缺少 `skill_version`）必须由 `check` 报告，但不得阻塞后续独立追加，也不得静默修改旧行；只有非 UTF-8、非法 JSON、非 object 等存储层损坏才拒绝 append。历史 schema v1 或非法 v2 无版本记录在查询和统计时统一视为 `skill_version=unknown`；no-skill v3 视为 `skill=none`、`skill_version=not_applicable`，不得回填猜测版本。禁止使用 `>`、`>>`、`echo`、PowerShell `Add-Content`/`Set-Content`/`Out-File` 或通用文本写入 API 直接修改 `record.jsonl`，脚本失败时也不得降级绕过。记录至少包含时间、skill usage、skill/版本归因、运行环境、模型、思考等级、动作、文档路径、触发原因、问题与根因、修改摘要、验证结果、结果状态和预防建议；无法获知的模型、思考等级或运行环境写 `unknown`，不得猜测。评估滚动更新的 skill 时必须只使用 `skill_usage=used` 且按 `skill_version` 过滤或分组，不能把 no-skill、版本未知或多个版本直接混为同一版本效果。禁止写入完整提示词、文档正文、用户敏感信息或思维过程。需要评审记录时，只能按条件查询或读取最近有限条目，不得把全文注入上下文。**
+**文档变更记录硬限制：每次逻辑上的文档变更完成后，在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；同一原因、同一轮、同一目录内的原子变更只记录一次，用 `documents` 列出全部实际变化文件，只有根因、结果或验证边界不同才拆记录。`record.jsonl` 自身追加不触发再次记录。新记录使用 schema v4：必须记录 skill usage/skill/version、运行环境、模型、思考等级、action、documents、trigger、reason、change summary、validation、outcome；正常进度使用 `feedback.signal=none`，不得为了填字段虚构问题、根因或预防建议。只有出现值得后续学习的偏差时才写 feedback：疑似可泛化但证据未足用 `candidate`；已经能定位根因且可形成防复发规则用 `actionable`，并填写稳定可复用的 snake_case `pattern`、severity、category、root_cause 与 prevention。用户改变需求使用 `trigger=user_change`；用户指出 Agent/文档错误使用 `trigger=user_correction`，两者不得混为同一质量信号。跨需求重复、skill 流程遗漏、模板诱导遗漏或 review 发现的通用缺陷不得默认归为 `project_context`；应归到最靠近根因的 `skill`/`template`/`eval`/`tooling`/`agent_execution`，只有确实依赖单一项目缺失事实时才用 `project_context`。只要当前 Agent 实际加载/执行了本 skill，就必须调用本 skill 自带的 `scripts/document_record.py append --skill <当前skill>`，skill version 由写入器从当前 `SKILL.md` 自动读取；实际没有使用任何 skill 才可 `--no-skill`。历史 v1/v2/v3 保持原字节；append 只因非 UTF-8、非法 JSON 或非 object 等存储层损坏而拒绝，历史 schema 语义问题只由 `check` 报告。禁止使用 shell/PowerShell 文本重定向或通用文本 API 绕过写入器。需要评审记录时使用受限 `query`、`stats` 或 `report`，不得把全文注入上下文；评价 skill 必须按 `skill_usage=used` 和明确 `skill_version` 分组，并结合 report 的 metadata coverage 判断模型/运行环境比较是否有足够样本。禁止写入完整提示词、正文、用户敏感信息或思维过程。**
 
 每个 skill 目录都自带同一份 UTF-8 写入器。即使只复制单个 `skills/<skill-name>/` 目录，也必须使用该 skill 内的脚本，不得退回 Shell 追加。写入器会从该 skill 自己的 `SKILL.md` 自动读取 `metadata.version`，调用者不传版本：
 
@@ -207,7 +211,7 @@ npx skills@latest add Sth32/skills
 python scripts/validate_skills.py
 ```
 
-验证器会要求每个 `SKILL.md` 包含统一的文档更新、阶段完成一致性与记录硬限制；对 `02`–`06` 和客户端对接技能额外检查分支工作流协议，对 `game-review` 检查 07 汇合协议，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致。
+验证器会要求每个 `SKILL.md` 包含统一的文档更新、结构性变更影响传播、阶段完成一致性与记录硬限制；对技术澄清、框架、完整实现和客户端对接技能额外检查跨层合同/真实消费链规则；对 `02`–`06` 和客户端对接技能检查分支工作流协议，对 `game-review` 检查 07 汇合协议，并检查每个 skill 自带的 UTF-8 写入器与仓库规范版本完全一致。
 
 `evals/` 中包含每个技能的行为测试场景；`evals/branch-workflow.md` 专门覆盖简单需求零额外成本、中途拆分、兄弟并行、多前驱依赖、Step 与工作单元区分、客户端对接命名、07 强制汇合以及 review 中回退重拆等失效模式。
 
