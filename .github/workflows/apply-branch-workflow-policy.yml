@@ -11,8 +11,6 @@ on:
 permissions:
   contents: write
 
-actions: {}
-
 jobs:
   apply:
     runs-on: ubuntu-latest
