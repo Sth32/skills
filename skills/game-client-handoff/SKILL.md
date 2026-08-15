@@ -2,7 +2,7 @@
 name: game-client-handoff
 description: Use when server-side entity properties, synchronization paths, and RPC or event contracts are stable enough to produce or update a concise client integration document that gives the client sufficient data to implement presentation without designing the client architecture.
 metadata:
-  version: "0.1.11"
+  version: "0.1.12"
 ---
 
 # 生成服务端到客户端对接文档
@@ -19,7 +19,7 @@ metadata:
 
 **单文档硬限制：当前工作单元的客户端对接阶段只能维护一份对接过程文档。** 不得为同一工作单元另建属性清单、RPC 清单、生命周期说明、服务端缺口报告、客户端待办或变更摘要。不同工作单元可以分别拥有自己的对接文档；拆分前已存在的共享对接文档可以作为共同基线保留。
 
-**分支工作流硬限制：`01-原始需求.md` 永远只有一份。`01` 完成后到 `game-review` 启动前，客户端合同可以跟随已有 `Uxx` 独立推进；若对接调查首次证明当前范围需要真正拆成可独立推进/阻塞/review 的工作单元，也可在 review 前创建或更新 `00-工作流索引.md`。所有文件保持同目录，禁止分支子目录。工作单元 ID 只表达身份，依赖只写在 `00`。分支对接文件只记录当前 `Uxx` 的合同；拆分前共享合同通过引用继承，不复制整份内容。**
+**分支工作流硬限制：工作单元最早可在 `01` 创建，并可独立推进客户端对接与 `07-Uxx` Review。当前 Uxx 的服务端属性/RPC/事件合同稳定到足以对接时即可创建或更新自己的 `Uxx-<主题>-客户端对接文档.md`，不等待无依赖兄弟分支。若调查证明范围需要继续拆分，也可更新 `00-工作流索引.md` 创建新 Uxx。所有文件保持同目录；ID 只表达身份，依赖只写在 `00`。分支对接文档只记录当前 Uxx 的合同，拆分前共享合同通过引用继承。**
 
 在分支模式下，下述“本阶段唯一文档”指当前工作单元的唯一客户端对接文档；`00` 是路由元数据，不复制字段、RPC、缺口或验证结论。
 
@@ -44,7 +44,7 @@ metadata:
 1. 当前服务端属性 Schema、协议/RPC/事件定义和实际代码；
 2. 生成后的类型或协议定义；
 3. 当前工作单元实际 `05`、`06` 与当前 diff；
-4. 唯一 `01`、对应需求/配置文档和拆分前共享合同（若有）。
+4. 当前工作单元适用的需求基线、对应需求/配置文档和拆分前共享合同（若有）。
 
 存在 `00` 时先定位 `Uxx`、范围、依赖和当前对接文档。代码与对接文档冲突时，以当前服务端实现为准，并同一轮原位修正文档；若冲突证明上游过程文档需修订，先说明拟修改内容并获得用户确认。
 

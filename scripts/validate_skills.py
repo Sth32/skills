@@ -54,10 +54,11 @@ BRANCHABLE_SKILLS = frozenset(
     }
 )
 BRANCH_RULE_MARKER = "**分支工作流硬限制："
-SPEC_ROOT_RULE_MARKER = "**根文档硬限制："
-REVIEW_MERGE_RULE_MARKER = "**Review 汇合硬限制："
+SPEC_BRANCH_RULE_MARKER = "**需求分支硬限制："
+REVIEW_INDEPENDENT_RULE_MARKER = "**独立 Review 硬限制："
+REVIEW_INTEGRATION_RULE_MARKER = "**整体 Review 硬限制："
 BRANCH_INDEX_NAME = "00-工作流索引.md"
-REVIEW_BRANCH_FORBIDDEN_MARKER = "禁止创建 `07-Uxx-*`"
+REVIEW_BRANCH_DOC_MARKER = "07-<Uxx>-<主题>-交叉评审.md"
 
 TARGETED_RULE_MARKERS = {
     "game-tech-clarify": "**跨边界通信合同硬限制：",
@@ -130,10 +131,10 @@ def validate_skill(skill_dir: Path) -> list[str]:
         errors.append("missing targeted cross-layer contract/runtime-chain rule")
 
     if name == "game-spec":
-        if SPEC_ROOT_RULE_MARKER not in text:
-            errors.append("missing original-requirement single-root rule")
-        if "01-Uxx" not in text:
-            errors.append("game-spec must explicitly forbid branched 01 documents")
+        if SPEC_BRANCH_RULE_MARKER not in text:
+            errors.append("missing requirement-stage branch rule")
+        if "01-Uxx" not in text or BRANCH_INDEX_NAME not in text:
+            errors.append("game-spec must support requirement-stage work units and workflow index")
 
     if name in BRANCHABLE_SKILLS:
         if BRANCH_RULE_MARKER not in text:
@@ -144,15 +145,17 @@ def validate_skill(skill_dir: Path) -> list[str]:
             errors.append("branchable skill must explicitly forbid branch subdirectories")
 
     if name == "game-review":
-        if REVIEW_MERGE_RULE_MARKER not in text:
-            errors.append("missing mandatory review convergence rule")
+        if REVIEW_INDEPENDENT_RULE_MARKER not in text:
+            errors.append("missing independent work-unit review rule")
+        if REVIEW_INTEGRATION_RULE_MARKER not in text:
+            errors.append("missing optional integration-review rule")
         if BRANCH_INDEX_NAME not in text:
             errors.append("game-review must understand branched workflow indexes")
-        if REVIEW_BRANCH_FORBIDDEN_MARKER not in text:
-            errors.append("game-review must explicitly forbid 07-Uxx review documents")
+        if REVIEW_BRANCH_DOC_MARKER not in text:
+            errors.append("game-review must define per-work-unit 07 review documents")
 
     if name == "game-docs" and BRANCH_INDEX_NAME not in text:
-        errors.append("game-docs must locate converged branch inputs through the workflow index")
+        errors.append("game-docs must locate reviewed branch inputs through the workflow index")
 
     bundled_writer = skill_dir / "scripts" / "document_record.py"
     if not bundled_writer.is_file():
