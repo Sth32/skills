@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - name: Fix migration helper symbol collision
+      - name: Fix one-shot migration helper
         shell: bash
         run: |
           python - <<'PY'
@@ -48,6 +48,7 @@ jobs:
               'changed.append(BRANCH_EVAL_PATH)',
               1,
           )
+          text = text.replace('        "强制汇合",\n', '', 1)
           path.write_text(text, encoding="utf-8", newline="\n")
           PY
       - name: Apply requirement-first branch workflow
