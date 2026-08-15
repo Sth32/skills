@@ -1,4 +1,3 @@
-# Also use direct workflow-file changes as an explicit CI closure point after policy migrations.
 name: Apply stage transition policy
 
 on:
