@@ -53,6 +53,44 @@ jobs:
           PY
       - name: Apply requirement-first branch workflow
         run: python scripts/apply_branch_workflow_policy.py
+      - name: Update validator for independent branch reviews
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/validate_skills.py")
+          text = path.read_text(encoding="utf-8")
+
+          text = text.replace(
+              'BRANCHABLE_SKILLS = frozenset(\n    {\n        "game-discovery",',
+              'BRANCHABLE_SKILLS = frozenset(\n    {\n        "game-spec",\n        "game-discovery",',
+              1,
+          )
+          text = text.replace(
+              'SPEC_ROOT_RULE_MARKER = "**根文档硬限制："\nREVIEW_MERGE_RULE_MARKER = "**Review 汇合硬限制："\nBRANCH_INDEX_NAME = "00-工作流索引.md"\nREVIEW_BRANCH_FORBIDDEN_MARKER = "禁止创建 `07-Uxx-*`"',
+              'SPEC_BRANCH_RULE_MARKER = "**需求分支硬限制："\nREVIEW_INDEPENDENT_RULE_MARKER = "**独立 Review 硬限制："\nREVIEW_INTEGRATION_RULE_MARKER = "**整体 Review 硬限制："\nBRANCH_INDEX_NAME = "00-工作流索引.md"\nREVIEW_BRANCH_DOC_MARKER = "07-<Uxx>-<主题>-交叉评审.md"',
+              1,
+          )
+
+          old_spec = '''    if name == "game-spec":\n        if SPEC_ROOT_RULE_MARKER not in text:\n            errors.append("missing original-requirement single-root rule")\n        if "01-Uxx" not in text:\n            errors.append("game-spec must explicitly forbid branched 01 documents")\n'''
+          new_spec = '''    if name == "game-spec":\n        if SPEC_BRANCH_RULE_MARKER not in text:\n            errors.append("missing requirement-stage branch rule")\n        if "01-Uxx" not in text or BRANCH_INDEX_NAME not in text:\n            errors.append("game-spec must support requirement-stage work units and workflow index")\n'''
+          if old_spec not in text:
+              raise SystemExit("validator game-spec anchor not found")
+          text = text.replace(old_spec, new_spec, 1)
+
+          old_review = '''    if name == "game-review":\n        if REVIEW_MERGE_RULE_MARKER not in text:\n            errors.append("missing mandatory review convergence rule")\n        if BRANCH_INDEX_NAME not in text:\n            errors.append("game-review must understand branched workflow indexes")\n        if REVIEW_BRANCH_FORBIDDEN_MARKER not in text:\n            errors.append("game-review must explicitly forbid 07-Uxx review documents")\n'''
+          new_review = '''    if name == "game-review":\n        if REVIEW_INDEPENDENT_RULE_MARKER not in text:\n            errors.append("missing independent work-unit review rule")\n        if REVIEW_INTEGRATION_RULE_MARKER not in text:\n            errors.append("missing optional integration-review rule")\n        if BRANCH_INDEX_NAME not in text:\n            errors.append("game-review must understand branched workflow indexes")\n        if REVIEW_BRANCH_DOC_MARKER not in text:\n            errors.append("game-review must define per-work-unit 07 review documents")\n'''
+          if old_review not in text:
+              raise SystemExit("validator game-review anchor not found")
+          text = text.replace(old_review, new_review, 1)
+
+          text = text.replace(
+              'errors.append("game-docs must locate converged branch inputs through the workflow index")',
+              'errors.append("game-docs must locate reviewed branch inputs through the workflow index")',
+              1,
+          )
+          path.write_text(text, encoding="utf-8", newline="\n")
+          PY
       - name: Validate skills
         run: python scripts/validate_skills.py
       - name: Remove one-shot migration helpers
