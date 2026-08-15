@@ -62,11 +62,6 @@ jobs:
           text = path.read_text(encoding="utf-8")
 
           text = text.replace(
-              'BRANCHABLE_SKILLS = frozenset(\n    {\n        "game-discovery",',
-              'BRANCHABLE_SKILLS = frozenset(\n    {\n        "game-spec",\n        "game-discovery",',
-              1,
-          )
-          text = text.replace(
               'SPEC_ROOT_RULE_MARKER = "**根文档硬限制："\nREVIEW_MERGE_RULE_MARKER = "**Review 汇合硬限制："\nBRANCH_INDEX_NAME = "00-工作流索引.md"\nREVIEW_BRANCH_FORBIDDEN_MARKER = "禁止创建 `07-Uxx-*`"',
               'SPEC_BRANCH_RULE_MARKER = "**需求分支硬限制："\nREVIEW_INDEPENDENT_RULE_MARKER = "**独立 Review 硬限制："\nREVIEW_INTEGRATION_RULE_MARKER = "**整体 Review 硬限制："\nBRANCH_INDEX_NAME = "00-工作流索引.md"\nREVIEW_BRANCH_DOC_MARKER = "07-<Uxx>-<主题>-交叉评审.md"',
               1,
