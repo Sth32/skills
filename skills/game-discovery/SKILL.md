@@ -2,7 +2,7 @@
 name: game-discovery
 description: Use when a game feature has an original-requirements document and needs high-value product clarification with its designer or requirement owner, informed by the current codebase while avoiding implementation-level questions.
 metadata:
-  version: "0.1.11"
+  version: "0.1.12"
 ---
 
 # 挖掘游戏需求
@@ -12,6 +12,8 @@ metadata:
 基于当前工作单元适用的需求基线、代码和现有实现，找出真正会改变产品规则的遗漏点，通过多轮沟通维护未分支的 `02-需求挖掘.md`，或当前工作单元的 `02-Uxx-<主题>-需求挖掘.md`。
 
 **核心原则：事实自己查，只把产品决策交给需求负责人。**
+
+**可配置值非问题硬限制：若需求语义已经明确，剩余不确定仅是可配置的具体 ID、数量、概率、阈值等内容值，且这些取值不改变行为分支、资格、资产类型、时序、功能范围或验收语义，则不得创建 `02` 问题，也不得追问“具体 ID 是多少 / 发多少”。本阶段只在确有产品意义时确认业务约束，例如“奖励只能来自货币类”；配置 ID 的合法业务域/范围、字段类型和可配能力由 `04` 基于真实配置源收敛，最终内容值留给策划配表。若不同 ID 代表不同业务类别/机制，或具体取值本身会改变产品规则，才属于需求决策。**
 
 **文档职责：未分支时 `01-原始需求.md` 保存全部当前产品规则；分支时由共享需求基线与当前/祖先 `01-Uxx` 共同构成当前工作单元的产品规则；当前 `02` 只保存当前工作单元尚未解决的高价值产品问题、必要风险、明确延期，以及已经回答但尚待用户确认回写 `01` 的最小临时结论。上游回写确认完成后，该临时内容必须从当前 `02` 删除。**
 
@@ -33,7 +35,7 @@ metadata:
 
 存在 `00` 时，上述门禁必须先从索引解析目标 `Uxx` 和实际依赖；未被当前工作单元依赖的兄弟分支不构成阻塞。索引无法唯一确定目标工作单元、依赖或当前文档时，先修正索引，不得靠聊天记忆猜测。
 
-**文档变更记录硬限制：每次逻辑上的文档变更完成后，在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；同一原因、同一轮、同一目录内的原子变更只记录一次，用 `documents` 列出全部实际变化文件，只有根因、结果或验证边界不同才拆记录。`record.jsonl` 自身追加不触发再次记录。新记录使用 schema v4：必须记录 skill usage/skill/version、运行环境、模型、思考等级、action、documents、trigger、reason、change summary、validation、outcome；正常进度使用 `feedback.signal=none`，不得为了填字段虚构问题、根因或预防建议。只有出现值得后续学习的偏差时才写 feedback：疑似可泛化但证据未足用 `candidate`；已经能定位根因且可形成防复发规则用 `actionable`，并填写稳定可复用的 snake_case `pattern`、severity、category、root_cause 与 prevention。用户改变需求使用 `trigger=user_change`；用户指出 Agent/文档错误使用 `trigger=user_correction`，两者不得混为同一质量信号。跨需求重复、skill 流程遗漏、模板诱导遗漏或 review 发现的通用缺陷不得默认归为 `project_context`；应归到最靠近根因的 `skill`/`template`/`eval`/`tooling`/`agent_execution`，只有确实依赖单一项目缺失事实时才用 `project_context`。只要当前 Agent 实际加载/执行了本 skill，就必须调用本 skill 自带的 `scripts/document_record.py append --skill <当前skill>`，skill version 由写入器从当前 `SKILL.md` 自动读取；实际没有使用任何 skill 才可 `--no-skill`。历史 v1/v2/v3 保持原字节；append 只因非 UTF-8、非法 JSON 或非 object 等存储层损坏而拒绝，历史 schema 语义问题只由 `check` 报告。禁止使用 shell/PowerShell 文本重定向或通用文本 API 绕过写入器。需要评审记录时使用受限 `query`、`stats` 或 `report`，不得把全文注入上下文；评价 skill 必须按 `skill_usage=used` 和明确 `skill_version` 分组，并结合 report 的 metadata coverage 判断模型/运行环境比较是否有足够样本。禁止写入完整提示词、正文、用户敏感信息或思维过程。**
+**文档变更记录硬限制：每次逻辑上的文档变更完成后，在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；同一原因、同一轮、同一目录内的原子变更只记录一次，用 `documents` 列出全部实际变化文件，只有根因、结果或验证边界不同才拆记录。`record.jsonl` 自身追加不触发再次记录。新记录使用 schema v4：必须记录 skill usage/skill、version、运行环境、模型、思考等级、action、documents、trigger、reason、change summary、validation、outcome；正常进度使用 `feedback.signal=none`，不得为了填字段虚构问题、根因或预防建议。只有出现值得后续学习的偏差时才写 feedback：疑似可泛化但证据未足用 `candidate`；已经能定位根因且可形成防复发规则用 `actionable`，并填写稳定可复用的 snake_case `pattern`、severity、category、root_cause 与 prevention。用户改变需求使用 `trigger=user_change`；用户指出 Agent/文档错误使用 `trigger=user_correction`，两者不得混为同一质量信号。跨需求重复、skill 流程遗漏、模板诱导遗漏或 review 发现的通用缺陷不得默认归为 `project_context`；应归到最靠近根因的 `skill`/`template`/`eval`/`tooling`/`agent_execution`，只有确实依赖单一项目缺失事实时才用 `project_context`。只要当前 Agent 实际加载/执行了本 skill，就必须调用本 skill 自带的 `scripts/document_record.py append --skill <当前skill>`，skill version 由写入器从当前 `SKILL.md` 自动读取；实际没有使用任何 skill 才可 `--no-skill`。历史 v1/v2/v3 保持原字节；append 只因非 UTF-8、非法 JSON 或非 object 等存储层损坏而拒绝，历史 schema 语义问题只由 `check` 报告。禁止使用 shell/PowerShell 文本重定向或通用文本 API 绕过写入器。需要评审记录时使用受限 `query`、`stats` 或 `report`，不得把全文注入上下文；评价 skill 必须按 `skill_usage=used` 和明确 `skill_version` 分组，并结合 report 的 metadata coverage 判断模型/运行环境比较是否有足够样本。禁止写入完整提示词、正文、用户敏感信息或思维过程。**
 
 创建或修改 `00-工作流索引.md` 也必须使用本 skill 的同一记录规则追加 `record.jsonl`；普通 `02` 正文变化若不改变拓扑、当前阶段或当前文档，不重复改写 `00`。
 
@@ -89,6 +91,8 @@ docs/requirements/<feature>/02-<Uxx>-<主题>-需求挖掘.md
 4. 影响值得沟通；
 5. 不是重复问题或实现细节；
 6. 属于当前工作单元范围，而不是兄弟工作单元。
+
+如果一个问题只是在追最终配置内容值（例如某个货币 ID、奖励数量、概率或平衡阈值），先判断其业务类别/约束是否已经明确。只要配置能力可以承载且不同取值不改变产品规则，就直接过滤掉，不进入 `02`；需要确认的只是会改变产品语义的类别或边界。
 
 优先级：P0 为核心矛盾或重大资产/公平风险；P1 为主要流程和重要边界；P2 仅在确有价值时保留。
 
@@ -171,6 +175,7 @@ docs/requirements/<feature>/02-<Uxx>-<主题>-需求挖掘.md
 | 回答后直接改写 `01` | 先更新当前 `02` 并告知用户，再说明拟回写内容并获得确认 |
 | 部分解决仍保留完整旧问题 | 只留下尚未明确的部分 |
 | 建立“暂不追问”垃圾桶 | 无决策价值的内容直接移除 |
+| 追问可配的具体 ID/数量/概率 | 只确认会改变产品语义的业务类别/约束；具体合法范围与最终值交给 04/策划配表 |
 | 把代码阅读问题转问策划 | 先调查，只有产品决策才问 |
 | 只在聊天里说结论，未更新当前 `02` | 同一轮更新当前工作单元文档并明确告知路径 |
 | 无实际独立工作却预建 U01/00 | 保持未分支旧文件名，只有真正拆分时才创建索引 |
