@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS_DIR = ROOT / "skills"
-README = ROOT / "README.md"
+README = ROOT / "docs" / "skill-development" / "design.md"
 VALIDATOR = ROOT / "scripts" / "validate_skills.py"
 CANONICAL_WRITER = ROOT / "scripts" / "document_record.py"
 BUNDLED_WRITER_RELATIVE = Path("scripts/document_record.py")
@@ -186,38 +186,35 @@ def patch_readme(text: str) -> str:
         if IMPACT_RULE_RE.search(text):
             text = IMPACT_RULE_RE.sub(DOCUMENT_IMPACT_RULE, text, count=1)
         else:
-            anchor = "\n## 文档变更记录\n"
+            anchor = "\n## 6. 文档更新与结构性变更传播\n"
             if anchor not in text:
-                raise ValueError("README: document-record section anchor not found")
-            section = "\n## 结构性变更影响传播\n\n" + DOCUMENT_IMPACT_RULE + "\n"
-            text = text.replace(anchor, section + anchor, 1)
-
-    if DOCUMENT_RECORD_RULE not in text:
-        if RECORD_RULE_RE.search(text):
-            text = RECORD_RULE_RE.sub(DOCUMENT_RECORD_RULE, text, count=1)
-        else:
-            text = insert_rule_after_heading(
-                text, "## 文档变更记录", DOCUMENT_RECORD_RULE, "document record"
-            )
+                raise ValueError("README: document-update section anchor not found")
+            text = text.replace(anchor, anchor + "\n" + DOCUMENT_IMPACT_RULE + "\n", 1)
 
     if DOCUMENT_CONSISTENCY_RULE not in text:
         if CONSISTENCY_RULE_RE.search(text):
             text = CONSISTENCY_RULE_RE.sub(DOCUMENT_CONSISTENCY_RULE, text, count=1)
         else:
-            heading = "## 阶段完成一致性收敛"
-            if heading in text:
-                text = insert_rule_after_heading(text, heading, DOCUMENT_CONSISTENCY_RULE, "consistency")
-            else:
-                anchor = "\n## 文档变更记录\n"
+            impact_anchor = "\n" + DOCUMENT_IMPACT_RULE + "\n"
+            if impact_anchor in text:
                 text = text.replace(
-                    anchor,
-                    "\n## 阶段完成一致性收敛\n\n" + DOCUMENT_CONSISTENCY_RULE + "\n" + anchor,
-                    1,
+                    impact_anchor, impact_anchor + "\n" + DOCUMENT_CONSISTENCY_RULE + "\n", 1
                 )
+            else:
+                raise ValueError("README: impact rule anchor not found for consistency rule")
+
+    if DOCUMENT_RECORD_RULE not in text:
+        if RECORD_RULE_RE.search(text):
+            text = RECORD_RULE_RE.sub(DOCUMENT_RECORD_RULE, text, count=1)
+        else:
+            anchor = "\n## 7. `record.jsonl` 审计与反馈\n"
+            if anchor not in text:
+                raise ValueError("README: record section anchor not found")
+            text = text.replace(anchor, anchor + "\n" + DOCUMENT_RECORD_RULE + "\n", 1)
 
     if README_VALIDATOR_PARAGRAPH not in text:
         validation_re = re.compile(
-            r"验证器会要求每个 `SKILL\.md` 包含.*?(?=\n\n`evals/)", re.DOTALL
+            r"静态验证负责检查各 skill 是否包含统一硬限制.*?(?=\n\n## )", re.DOTALL
         )
         if not validation_re.search(text):
             raise ValueError("README: validator description anchor not found")
