@@ -1,5 +1,11 @@
 # Repository Agent Rules
 
+## Repository design guidance
+
+Before making repository-wide workflow, document-model, stage-gate, review-model, or other durable design changes, read [`docs/skill-development/principles.md`](docs/skill-development/principles.md) and the relevant detailed design/specification.
+
+`principles.md` is the canonical short list of long-term decision rules. Add a principle only when it changes recurring design or maintenance choices; keep the clause short and put mechanisms, exceptions, templates, and examples in `docs/skill-development/design.md` or the relevant专项规范. Do not maintain a second expanded principles list elsewhere.
+
 ## CI closure is part of every repository change
 
 When an Agent creates, updates, deletes, renames, commits, or pushes files in this repository, the repository change is **not complete when the Git write succeeds**. CI is part of the same change transaction.
