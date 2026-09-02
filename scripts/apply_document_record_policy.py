@@ -360,15 +360,17 @@ def patch_readme(text: str) -> str:
 
 def patch_validator(text: str) -> str:
     replacement = f"DOCUMENT_RECORD_RULE = {BUNDLED_RECORD_RULE!r}\n\nBRANCHABLE_SKILLS"
-    text, count = re.subn(
-        r"DOCUMENT_RECORD_RULE = \(.*?\n\)\n\nBRANCHABLE_SKILLS",
-        replacement,
-        text,
-        count=1,
-        flags=re.DOTALL,
-    )
-    if count != 1:
-        raise ValueError("validator: cannot replace document record rule")
+    canonical = f"DOCUMENT_RECORD_RULE = {BUNDLED_RECORD_RULE!r}"
+    if canonical not in text:
+        text, count = re.subn(
+            r"DOCUMENT_RECORD_RULE = \(.*?\n\)\n\nBRANCHABLE_SKILLS",
+            replacement,
+            text,
+            count=1,
+            flags=re.DOTALL,
+        )
+        if count != 1:
+            raise ValueError("validator: cannot replace document record rule")
 
     new_check = (
         '    if DOCUMENT_RECORD_RULE not in text:\n'
