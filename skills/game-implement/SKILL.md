@@ -2,7 +2,7 @@
 name: game-implement
 description: Use when a game feature already has an approved runnable implementation skeleton and needs its remaining product behavior, edge cases, failure handling, compatibility, tests, and operational details completed without casually redesigning the established framework.
 metadata:
-  version: "0.1.12"
+  version: "0.1.13"
 ---
 
 # 完成游戏功能实现
@@ -33,7 +33,7 @@ metadata:
 
 **跨 session 可恢复性硬限制：当前工作单元的完整实现方案文档不得依赖当前聊天上下文才能继续实现。** 在开始编码、每个分步 review 边界、暂停或结束当前 session 前，文档必须能明确回答：当前工作单元、实现模式、步骤划分、已确认范围、当前步骤及状态、实际代码基线与关键入口、已完成行为和验证证据、尚未解决的阻塞或决策、下一动作及进入下一步的条件。不得复制共享 `01` 或其他工作单元全文来制造“自包含”；只保留继续实现必需的引用、差异和当前状态。新的 session 必须先用当前文档核对实际代码/diff，发现不一致时以代码事实为依据立即修正文档后再继续。
 
-**文档变更记录硬限制：每次逻辑上的文档变更完成后，在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；同一原因、同一轮、同一目录内的原子变更只记录一次，用 `documents` 列出全部实际变化文件，只有根因、结果或验证边界不同才拆记录。`record.jsonl` 自身追加不触发再次记录。新记录使用 schema v4：必须记录 skill usage/skill/version、运行环境、模型、思考等级、action、documents、trigger、reason、change summary、validation、outcome；正常进度使用 `feedback.signal=none`，不得为了填字段虚构问题、根因或预防建议。只有出现值得后续学习的偏差时才写 feedback：疑似可泛化但证据未足用 `candidate`；已经能定位根因且可形成防复发规则用 `actionable`，并填写稳定可复用的 snake_case `pattern`、severity、category、root_cause 与 prevention。用户改变需求使用 `trigger=user_change`；用户指出 Agent/文档错误使用 `trigger=user_correction`，两者不得混为同一质量信号。跨需求重复、skill 流程遗漏、模板诱导遗漏或 review 发现的通用缺陷不得默认归为 `project_context`；应归到最靠近根因的 `skill`/`template`/`eval`/`tooling`/`agent_execution`，只有确实依赖单一项目缺失事实时才用 `project_context`。只要当前 Agent 实际加载/执行了本 skill，就必须调用本 skill 自带的 `scripts/document_record.py append --skill <当前skill>`，skill version 由写入器从当前 `SKILL.md` 自动读取；实际没有使用任何 skill 才可 `--no-skill`。历史 v1/v2/v3 保持原字节；append 只因非 UTF-8、非法 JSON 或非 object 等存储层损坏而拒绝，历史 schema 语义问题只由 `check` 报告。禁止使用 shell/PowerShell 文本重定向或通用文本 API 绕过写入器。需要评审记录时使用受限 `query`、`stats` 或 `report`，不得把全文注入上下文；评价 skill 必须按 `skill_usage=used` 和明确 `skill_version` 分组，并结合 report 的 metadata coverage 判断模型/运行环境比较是否有足够样本。禁止写入完整提示词、正文、用户敏感信息或思维过程。**
+**外部记录硬限制：每次逻辑上的文档变更完成后，只通过 `sth32-skills-record append` 提交本次变更的最小结构化事实；记录存储属于仓库外部基础设施，Agent 不得查找、定位、读取、搜索、解析或直接修改任何历史记录、记录文件或 recorder 实现，也不得为了写记录而扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。命令不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过 recorder。**
 
 创建或修改 `00-工作流索引.md` 同样必须追加记录；普通实现正文变化若不改变拓扑、当前阶段或当前文档，不重复改写索引。
 

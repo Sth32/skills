@@ -2,7 +2,7 @@
 name: game-spec
 description: Use when game feature requirements arrive as conversations, transcripts, tickets, notes, screenshots, or mixed documents and must be consolidated into a concise, lossless original-requirements document before clarification or implementation.
 metadata:
-  version: "0.1.14"
+  version: "0.1.15"
 ---
 
 # 整理游戏原始需求
@@ -33,7 +33,7 @@ metadata:
 
 **阶段切换门禁硬限制：阶段文档顶部“状态”是阶段状态的唯一权威来源，聊天中的“完成”“可以进入下一阶段”不构成阶段完成。结束本阶段时，必须先满足本阶段完成/收敛条件，再在同一轮把顶部状态写为本阶段模板定义的可移交终态，同步最后更新时间、未解决计数、当前步骤等受影响元信息，并重新读取文档确认终态已经落盘；在这些动作完成前，不得宣称本阶段完成、移交或下一阶段可以开始。开始或恢复一个按工作流顺序进入的下游阶段时，在创建或修改本阶段文档、配置或代码之前，必须读取本 skill 要求的上游阶段文档顶部状态；任一实际前置上游不是其正常可移交终态时，必须明确指出具体文件与当前状态并停止正常推进，返回对应上游闭环，不得用聊天记录、记忆或推断覆盖文档状态，也不得静默替上游补成已完成。若本 skill 明确允许独立、提前或并行执行，只检查它声明的实际前置；用户在看到状态警告后明确要求带未闭环上游并行推进时，只能进行不依赖未决上游结论的安全工作，并在当前阶段文档显式记录上游阻塞/例外，不得把这种例外描述成正常阶段切换。**
 
-**文档变更记录硬限制：每次逻辑上的文档变更完成后，在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；同一原因、同一轮、同一目录内的原子变更只记录一次，用 `documents` 列出全部实际变化文件，只有根因、结果或验证边界不同才拆记录。`record.jsonl` 自身追加不触发再次记录。新记录使用 schema v4：必须记录 skill usage/skill/version、运行环境、模型、思考等级、action、documents、trigger、reason、change summary、validation、outcome；正常进度使用 `feedback.signal=none`，不得为了填字段虚构问题、根因或预防建议。只有出现值得后续学习的偏差时才写 feedback：疑似可泛化但证据未足用 `candidate`；已经能定位根因且可形成防复发规则用 `actionable`，并填写稳定可复用的 snake_case `pattern`、severity、category、root_cause 与 prevention。用户改变需求使用 `trigger=user_change`；用户指出 Agent/文档错误使用 `trigger=user_correction`，两者不得混为同一质量信号。跨需求重复、skill 流程遗漏、模板诱导遗漏或 review 发现的通用缺陷不得默认归为 `project_context`；应归到最靠近根因的 `skill`/`template`/`eval`/`tooling`/`agent_execution`，只有确实依赖单一项目缺失事实时才用 `project_context`。只要当前 Agent 实际加载/执行了本 skill，就必须调用本 skill 自带的 `scripts/document_record.py append --skill <当前skill>`，skill version 由写入器从当前 `SKILL.md` 自动读取；实际没有使用任何 skill 才可 `--no-skill`。历史 v1/v2/v3 保持原字节；append 只因非 UTF-8、非法 JSON 或非 object 等存储层损坏而拒绝，历史 schema 语义问题只由 `check` 报告。禁止使用 shell/PowerShell 文本重定向或通用文本 API 绕过写入器。需要评审记录时使用受限 `query`、`stats` 或 `report`，不得把全文注入上下文；评价 skill 必须按 `skill_usage=used` 和明确 `skill_version` 分组，并结合 report 的 metadata coverage 判断模型/运行环境比较是否有足够样本。禁止写入完整提示词、正文、用户敏感信息或思维过程。**
+**外部记录硬限制：每次逻辑上的文档变更完成后，只通过 `sth32-skills-record append` 提交本次变更的最小结构化事实；记录存储属于仓库外部基础设施，Agent 不得查找、定位、读取、搜索、解析或直接修改任何历史记录、记录文件或 recorder 实现，也不得为了写记录而扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。命令不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过 recorder。**
 
 ## 产物
 
