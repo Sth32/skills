@@ -2,7 +2,7 @@
 name: game-discovery
 description: Use when a game feature has an original-requirements document and needs high-value product clarification with its designer or requirement owner, informed by the current codebase while avoiding implementation-level questions.
 metadata:
-  version: "0.1.13"
+  version: "0.1.14"
 ---
 
 # 挖掘游戏需求
@@ -35,7 +35,7 @@ metadata:
 
 存在 `00` 时，上述门禁必须先从索引解析目标 `Uxx` 和实际依赖；未被当前工作单元依赖的兄弟分支不构成阻塞。索引无法唯一确定目标工作单元、依赖或当前文档时，先修正索引，不得靠聊天记忆猜测。
 
-**外部记录硬限制：每次逻辑上的文档变更完成后，只通过 `sth32-skills-record append` 提交本次变更的最小结构化事实；记录存储属于仓库外部基础设施，Agent 不得查找、定位、读取、搜索、解析或直接修改任何历史记录、记录文件或 recorder 实现，也不得为了写记录而扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。命令不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过 recorder。**
+**内置记录硬限制：每次逻辑上的文档变更完成后，只执行当前 skill 自带的 `scripts/document_record.py append`，提交本次变更的最小结构化事实；写入器完整实现随 skill 分发，但记录数据仍存放在仓库外。普通开发 Agent 必须把写入器当作只写接口：不得打开、读取、搜索或修改写入器源码，不得查找、定位、读取、搜索、解析或直接修改任何历史记录或记录文件，也不得为了写记录扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。写入器不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过写入器。**
 
 创建或修改 `00-工作流索引.md` 也必须使用本 skill 的同一记录规则追加 `record.jsonl`；普通 `02` 正文变化若不改变拓扑、当前阶段或当前文档，不重复改写 `00`。
 

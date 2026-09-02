@@ -2,7 +2,7 @@
 name: game-docs
 description: Use when implemented game-server code must be distilled into a concise, durable authority document covering module responsibility, stable rules, data ownership, persistence, synchronization, and cross-module contracts without recording configurable values, implementation history, or task status.
 metadata:
-  version: "0.2.12"
+  version: "0.2.13"
 ---
 
 # 游戏模块权威文档
@@ -27,7 +27,7 @@ metadata:
 
 本阶段的实际前置是：未分支时单线 `07-交叉评审.md` 已完成；已分支时本次范围所有叶工作单元的 `07-Uxx-*` 已完成。整体 `07-交叉评审.md` 若存在也必须完成，但它不是分支模式的强制前置。长期文档不复刻分支结构。
 
-**外部记录硬限制：每次逻辑上的文档变更完成后，只通过 `sth32-skills-record append` 提交本次变更的最小结构化事实；记录存储属于仓库外部基础设施，Agent 不得查找、定位、读取、搜索、解析或直接修改任何历史记录、记录文件或 recorder 实现，也不得为了写记录而扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。命令不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过 recorder。**
+**内置记录硬限制：每次逻辑上的文档变更完成后，只执行当前 skill 自带的 `scripts/document_record.py append`，提交本次变更的最小结构化事实；写入器完整实现随 skill 分发，但记录数据仍存放在仓库外。普通开发 Agent 必须把写入器当作只写接口：不得打开、读取、搜索或修改写入器源码，不得查找、定位、读取、搜索、解析或直接修改任何历史记录或记录文件，也不得为了写记录扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。写入器不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过写入器。**
 
 文档描述当前生效的系统事实，不是代码导读、实现复盘、评审报告、分支拓扑、排查记录或任务清单。
 

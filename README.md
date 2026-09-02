@@ -37,7 +37,7 @@
 ## 设计与规范
 
 - [`docs/skill-development/principles.md`](docs/skill-development/principles.md)：长期准则，只维护会改变设计、开发和维护取舍的简短条例。
-- [`docs/skill-development/design.md`](docs/skill-development/design.md)：仓库级设计，包含工作流模型、权威文档模型、阶段门禁、变更传播和外部审计记录机制。
+- [`docs/skill-development/design.md`](docs/skill-development/design.md)：仓库级设计，包含工作流模型、权威文档模型、阶段门禁、变更传播和内置写入器与仓库外审计记录机制。
 - [`docs/skill-development/branch-workflow.md`](docs/skill-development/branch-workflow.md)：Uxx 拆分、依赖、命名、独立 Review 与整体 Review 的专项规范。
 - 各 `skills/<skill-name>/SKILL.md`：单个 skill 的执行规则和阶段细节。
 

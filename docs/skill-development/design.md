@@ -100,7 +100,7 @@
 - 新事实替代旧事实；
 - 已解决问题从正文移除或改写为最终结论；
 - 被新证据推翻的判断不得继续与新结论并列；
-- 历史过程通过 Git 与外部审计记录追溯。
+- 历史过程通过 Git 与仓库外审计记录追溯。
 
 ### 4.2 未分支目录
 
@@ -224,19 +224,13 @@ docs/requirements/<feature>/
 
 Review 发现的问题只有在确认不影响 Review 通过条件且满足上述延期条件时，才可以进入 `收尾事项.md`；不得用旁路清单降级真正的正确性、运行安全或验收缺陷。`收尾事项.md` 的变更同样通过外部 recorder 记录；同一原因、同一轮与阶段文档一起变化时合并为一次原子提交。
 
-## 7. 外部审计记录
+## 7. 内置写入器与仓库外审计记录
 
-**外部记录硬限制：每次逻辑上的文档变更完成后，只通过 `sth32-skills-record append` 提交本次变更的最小结构化事实；记录存储属于仓库外部基础设施，Agent 不得查找、定位、读取、搜索、解析或直接修改任何历史记录、记录文件或 recorder 实现，也不得为了写记录而扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。命令不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过 recorder。**
+**内置记录硬限制：每次逻辑上的文档变更完成后，只执行当前 skill 自带的 `scripts/document_record.py append`，提交本次变更的最小结构化事实；写入器完整实现随 skill 分发，但记录数据仍存放在仓库外。普通开发 Agent 必须把写入器当作只写接口：不得打开、读取、搜索或修改写入器源码，不得查找、定位、读取、搜索、解析或直接修改任何历史记录或记录文件，也不得为了写记录扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。写入器不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过写入器。**
 
-记录系统是仓库外部 telemetry 基础设施，不属于需求目录、阶段文档或项目知识空间。正常开发 Agent 只拥有 append 接口，不以历史记录作为当前任务上下文。
+每个 skill 自带完整的 `scripts/document_record.py`，因此 skill 拷贝到其他环境后仍可直接写记录，不依赖额外安装 CLI。写入器只提供 append 能力，默认把数据保存到用户级 `~/.sth32_skills` 下，而不是需求仓库或 skill 仓库的工作区。
 
-Agent 侧只依赖稳定命令接口：
-
-```bash
-sth32-skills-record append ...
-```
-
-存储路径、文件名、编码、schema 持久化细节和历史查询能力均属于 recorder 实现细节，不在 skill、阶段文档或普通 Agent 规则中暴露。需要分析历史反馈时，应由独立的 skill-maintenance / record-analysis 流程执行，而不是由正常开发 Agent 读取记录。
+普通开发 Agent 不读取写入器源码和历史记录；仓库通过 `.ignore` / `.rgignore` 将写入器从常规文本搜索中排除，降低误读造成的上下文污染。需要分析历史 feedback 时使用独立维护流程。
 
 记录只保留改进所需的最小事实，不写完整提示词、聊天原文、文档正文、用户敏感信息或内部思维过程。
 

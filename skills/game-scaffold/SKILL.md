@@ -2,7 +2,7 @@
 name: game-scaffold
 description: "Use when a game feature needs its multithreaded server skeleton designed and implemented: entity properties, data authority and persistence, startup mirror synchronization, client visibility, and empty RPC or event routing, while leaving all product rules and side effects to game-implement."
 metadata:
-  version: "0.2.12"
+  version: "0.2.13"
 ---
 
 # 搭建游戏功能框架
@@ -31,7 +31,7 @@ metadata:
 
 存在 `00` 时，开始或恢复本阶段前必须解析当前 `Uxx` 的共享上游和直接前驱，只检查真实依赖；未被依赖的兄弟工作单元不构成阻塞。
 
-**外部记录硬限制：每次逻辑上的文档变更完成后，只通过 `sth32-skills-record append` 提交本次变更的最小结构化事实；记录存储属于仓库外部基础设施，Agent 不得查找、定位、读取、搜索、解析或直接修改任何历史记录、记录文件或 recorder 实现，也不得为了写记录而扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。命令不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过 recorder。**
+**内置记录硬限制：每次逻辑上的文档变更完成后，只执行当前 skill 自带的 `scripts/document_record.py append`，提交本次变更的最小结构化事实；写入器完整实现随 skill 分发，但记录数据仍存放在仓库外。普通开发 Agent 必须把写入器当作只写接口：不得打开、读取、搜索或修改写入器源码，不得查找、定位、读取、搜索、解析或直接修改任何历史记录或记录文件，也不得为了写记录扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。写入器不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过写入器。**
 
 创建或修改 `00-工作流索引.md` 同样必须追加记录；普通框架正文变化若不改变拓扑、当前阶段或当前文档，不重复改写索引。
 
