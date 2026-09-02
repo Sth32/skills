@@ -6,6 +6,14 @@ Before making repository-wide workflow, document-model, stage-gate, review-model
 
 `principles.md` is the canonical short list of long-term decision rules. Add a principle only when it changes recurring design or maintenance choices; keep the clause short and put mechanisms, exceptions, templates, and examples in `docs/skill-development/design.md` or the relevant专项规范. Do not maintain a second expanded principles list elsewhere.
 
+## External record sink
+
+Document-change telemetry is external infrastructure, not repository knowledge.
+
+Normal repository/development Agents must only submit the current event through `sth32-skills-record append`. Do not search for, locate, open, read, tail, grep, parse, or directly modify record storage or recorder implementation, and do not scan the workspace for `record.jsonl` or equivalent files. If the recorder command is unavailable or fails, report that the audit event was not written; do not bypass the command with direct filesystem writes.
+
+Historical record analysis belongs to a separate maintenance/analysis workflow and must not be pulled into ordinary development context.
+
 ## CI closure is part of every repository change
 
 When an Agent creates, updates, deletes, renames, commits, or pushes files in this repository, the repository change is **not complete when the Git write succeeds**. CI is part of the same change transaction.
