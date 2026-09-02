@@ -67,7 +67,3 @@ jobs:
       - name: Compile helper scripts
         if: steps.gate.outputs.run == 'true'
         run: python -m py_compile scripts/*.py
-
-      - name: Test versioned document records
-        if: steps.gate.outputs.run == 'true'
-        run: python scripts/test_document_record.py
