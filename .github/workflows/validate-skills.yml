@@ -67,3 +67,7 @@ jobs:
       - name: Compile helper scripts
         if: steps.gate.outputs.run == 'true'
         run: python -m py_compile scripts/*.py
+
+      - name: Test bundled document recorder
+        if: steps.gate.outputs.run == 'true'
+        run: python scripts/test_bundled_document_record.py
