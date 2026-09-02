@@ -100,7 +100,7 @@
 - 新事实替代旧事实；
 - 已解决问题从正文移除或改写为最终结论；
 - 被新证据推翻的判断不得继续与新结论并列；
-- 历史过程通过 Git、日志和 `record.jsonl` 追溯。
+- 历史过程通过 Git 与外部审计记录追溯。
 
 ### 4.2 未分支目录
 
@@ -115,7 +115,6 @@ docs/requirements/<feature>/
 ├── <主题名>-客户端对接文档.md（按需）
 ├── 07-交叉评审.md
 ├── 收尾事项.md（按需，非阶段）
-└── record.jsonl
 ```
 
 ### 4.3 分支目录
@@ -137,7 +136,6 @@ docs/requirements/<feature>/
 ├── 07-U02-奖励-交叉评审.md
 ├── 07-交叉评审.md                         # 按集成风险可选
 ├── 收尾事项.md（按需，feature 级、非阶段）
-└── record.jsonl
 ```
 
 `00-工作流索引.md` 只承担路由：工作单元 ID、范围、依赖、当前阶段、当前文档和整体 Review 状态。它不得复制需求规则、方案、配置值、验证结果、未决问题或阶段文档状态正文。
@@ -224,27 +222,23 @@ docs/requirements/<feature>/
 
 当全部目标主流程开发和验收完成后，对 `收尾事项.md` 做一次集中收尾：能低风险处理的直接处理；仍值得做但需要独立投入的转成正式任务；已经无价值的明确删除或关闭。若新证据表明某条不再满足延期条件，应立即移出旁路清单，回到正常工作流作为当前阻塞、结构性变更或上游修正处理。
 
-Review 发现的问题只有在确认不影响 Review 通过条件且满足上述延期条件时，才可以进入 `收尾事项.md`；不得用旁路清单降级真正的正确性、运行安全或验收缺陷。`收尾事项.md` 的变更仍遵守本目录 `record.jsonl` 的审计规则；同一原因、同一轮与阶段文档一起变化时可合并为一条原子记录。
+Review 发现的问题只有在确认不影响 Review 通过条件且满足上述延期条件时，才可以进入 `收尾事项.md`；不得用旁路清单降级真正的正确性、运行安全或验收缺陷。`收尾事项.md` 的变更同样通过外部 recorder 记录；同一原因、同一轮与阶段文档一起变化时合并为一次原子提交。
 
-## 7. `record.jsonl` 审计与反馈
+## 7. 外部审计记录
 
-**文档变更记录硬限制：每次逻辑上的文档变更完成后，在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；同一原因、同一轮、同一目录内的原子变更只记录一次，用 `documents` 列出全部实际变化文件，只有根因、结果或验证边界不同才拆记录。`record.jsonl` 自身追加不触发再次记录。新记录使用 schema v4：必须记录 skill usage/skill/version、运行环境、模型、思考等级、action、documents、trigger、reason、change summary、validation、outcome；正常进度使用 `feedback.signal=none`，不得为了填字段虚构问题、根因或预防建议。只有出现值得后续学习的偏差时才写 feedback：疑似可泛化但证据未足用 `candidate`；已经能定位根因且可形成防复发规则用 `actionable`，并填写稳定可复用的 snake_case `pattern`、severity、category、root_cause 与 prevention。用户改变需求使用 `trigger=user_change`；用户指出 Agent/文档错误使用 `trigger=user_correction`，两者不得混为同一质量信号。跨需求重复、skill 流程遗漏、模板诱导遗漏或 review 发现的通用缺陷不得默认归为 `project_context`；应归到最靠近根因的 `skill`/`template`/`eval`/`tooling`/`agent_execution`，只有确实依赖单一项目缺失事实时才用 `project_context`。只要当前 Agent 实际加载/执行了本 skill，就必须调用本 skill 自带的 `scripts/document_record.py append --skill <当前skill>`，skill version 由写入器从当前 `SKILL.md` 自动读取；实际没有使用任何 skill 才可 `--no-skill`。历史 v1/v2/v3 保持原字节；append 只因非 UTF-8、非法 JSON 或非 object 等存储层损坏而拒绝，历史 schema 语义问题只由 `check` 报告。禁止使用 shell/PowerShell 文本重定向或通用文本 API 绕过写入器。需要评审记录时使用受限 `query`、`stats` 或 `report`，不得把全文注入上下文；评价 skill 必须按 `skill_usage=used` 和明确 `skill_version` 分组，并结合 report 的 metadata coverage 判断模型/运行环境比较是否有足够样本。禁止写入完整提示词、正文、用户敏感信息或思维过程。**
+**外部记录硬限制：每次逻辑上的文档变更完成后，只通过 `sth32-skills-record append` 提交本次变更的最小结构化事实；记录存储属于仓库外部基础设施，Agent 不得查找、定位、读取、搜索、解析或直接修改任何历史记录、记录文件或 recorder 实现，也不得为了写记录而扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。命令不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过 recorder。**
 
-每个过程文档目录维护 append-only `record.jsonl`。它是审计与 skill 改进元数据，不是第二份阶段文档。
+记录系统是仓库外部 telemetry 基础设施，不属于需求目录、阶段文档或项目知识空间。正常开发 Agent 只拥有 append 接口，不以历史记录作为当前任务上下文。
 
-基本规则：
+Agent 侧只依赖稳定命令接口：
 
-- 每次逻辑上的文档变更完成后追加一条记录；
-- 同一原因、同一轮、同一目录内的原子变更合并为一条，用 `documents` 列出实际变化文件；
-- `record.jsonl` 自身追加不再次触发记录；
-- 新记录使用 schema v4；历史 v1/v2/v3 保持原字节；
-- 正常进度使用 `feedback.signal=none`，不得虚构问题或改进建议；
-- 用户改变需求使用 `trigger=user_change`；用户指出 Agent/文档错误使用 `trigger=user_correction`；
-- 只有可泛化偏差才进入 `candidate` / `actionable` feedback；
-- 实际加载并执行 skill 时，通过该 skill 自带 `scripts/document_record.py append --skill <skill>` 写入，版本由写入器读取当前 `SKILL.md`；未使用 skill 时才使用 `--no-skill`；
-- 查询历史时使用有限尾部查询或流式聚合，不把完整 `record.jsonl` 读入上下文。
+```bash
+sth32-skills-record append ...
+```
 
-`record.jsonl` 的目的不是保存操作流水，而是保留：为什么改、改了什么、如何验证、是否暴露可泛化流程缺陷。
+存储路径、文件名、编码、schema 持久化细节和历史查询能力均属于 recorder 实现细节，不在 skill、阶段文档或普通 Agent 规则中暴露。需要分析历史反馈时，应由独立的 skill-maintenance / record-analysis 流程执行，而不是由正常开发 Agent 读取记录。
+
+记录只保留改进所需的最小事实，不写完整提示词、聊天原文、文档正文、用户敏感信息或内部思维过程。
 
 ## 8. 配置与客户端合同
 
