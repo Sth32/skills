@@ -9,7 +9,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS_DIR = ROOT / "skills"
-CANONICAL_RECORD_WRITER = ROOT / "scripts" / "document_record.py"
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 DOCUMENT_TIMING_RULE = (
     "**文档更新时序硬限制：任何新事实、确认、执行结果或验证结果只要改变本阶段内容，必须在同一轮立即原位更新本阶段唯一文档，并明确告知用户已更新的文件路径；不得等到阶段结束、批次结束或用户再次提醒。发现结"
@@ -28,19 +27,10 @@ DOCUMENT_CONSISTENCY_RULE = (
 )
 
 DOCUMENT_RECORD_RULE = (
-    "**文档变更记录硬限制：每次逻辑上的文档变更完成后，在目标文档所在目录的 `record.jsonl` 追加一条 JSON 记录；同一原因、同一轮、同一目录内的原子变更只记录一次，用 `documen"
-    "ts` 列出全部实际变化文件，只有根因、结果或验证边界不同才拆记录。`record.jsonl` 自身追加不触发再次记录。新记录使用 schema v4：必须记录 skill usage/skill/"
-    "version、运行环境、模型、思考等级、action、documents、trigger、reason、change summary、validation、outcome；正常进度使用 `feedb"
-    "ack.signal=none`，不得为了填字段虚构问题、根因或预防建议。只有出现值得后续学习的偏差时才写 feedback：疑似可泛化但证据未足用 `candidate`；已经能定位根因且可形成防复"
-    "发规则用 `actionable`，并填写稳定可复用的 snake_case `pattern`、severity、category、root_cause 与 prevention。用户改变需求使用 "
-    "`trigger=user_change`；用户指出 Agent/文档错误使用 `trigger=user_correction`，两者不得混为同一质量信号。跨需求重复、skill 流程遗漏、模板诱导"
-    "遗漏或 review 发现的通用缺陷不得默认归为 `project_context`；应归到最靠近根因的 `skill`/`template`/`eval`/`tooling`/`agent_exec"
-    "ution`，只有确实依赖单一项目缺失事实时才用 `project_context`。只要当前 Agent 实际加载/执行了本 skill，就必须调用本 skill 自带的 `scripts/docu"
-    "ment_record.py append --skill <当前skill>`，skill version 由写入器从当前 `SKILL.md` 自动读取；实际没有使用任何 skill 才可 `--"
-    "no-skill`。历史 v1/v2/v3 保持原字节；append 只因非 UTF-8、非法 JSON 或非 object 等存储层损坏而拒绝，历史 schema 语义问题只由 `check` 报告"
-    "。禁止使用 shell/PowerShell 文本重定向或通用文本 API 绕过写入器。需要评审记录时使用受限 `query`、`stats` 或 `report`，不得把全文注入上下文；评价 ski"
-    "ll 必须按 `skill_usage=used` 和明确 `skill_version` 分组，并结合 report 的 metadata coverage 判断模型/运行环境比较是否有足够样本。禁"
-    "止写入完整提示词、正文、用户敏感信息或思维过程。**"
+    "**外部记录硬限制：每次逻辑上的文档变更完成后，只通过 `sth32-skills-record append` 提交本次变更的最小结构化事实；"
+    "记录存储属于仓库外部基础设施，Agent 不得查找、定位、读取、搜索、解析或直接修改任何历史记录、记录文件或 recorder 实现，也不得为了写记录而扫描工作区中的 record 文件。"
+    "同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。"
+    "用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。命令不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过 recorder。**"
 )
 
 BRANCHABLE_SKILLS = frozenset(
@@ -68,9 +58,7 @@ TARGETED_RULE_MARKERS = {
 }
 
 REQUIRED_REPO_FILES = (
-    "scripts/document_record.py",
     "docs/skill-development/document-change-record.md",
-    "evals/document-recording.md",
     "docs/skill-development/branch-workflow.md",
     "evals/branch-workflow.md",
 )
@@ -125,7 +113,7 @@ def validate_skill(skill_dir: Path) -> list[str]:
     if DOCUMENT_CONSISTENCY_RULE not in text:
         errors.append("missing canonical stage-completion consistency rule")
     if DOCUMENT_RECORD_RULE not in text:
-        errors.append("missing canonical document change record rule")
+        errors.append("missing canonical external record rule")
     targeted_marker = TARGETED_RULE_MARKERS.get(name)
     if targeted_marker and targeted_marker not in text:
         errors.append("missing targeted cross-layer contract/runtime-chain rule")
@@ -156,12 +144,6 @@ def validate_skill(skill_dir: Path) -> list[str]:
 
     if name == "game-docs" and BRANCH_INDEX_NAME not in text:
         errors.append("game-docs must locate reviewed branch inputs through the workflow index")
-
-    bundled_writer = skill_dir / "scripts" / "document_record.py"
-    if not bundled_writer.is_file():
-        errors.append("missing bundled UTF-8 document record writer")
-    elif bundled_writer.read_bytes() != CANONICAL_RECORD_WRITER.read_bytes():
-        errors.append("bundled document record writer differs from canonical writer")
 
     line_count = len(text.splitlines())
     if line_count > 500:
