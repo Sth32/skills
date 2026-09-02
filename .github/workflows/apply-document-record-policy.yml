@@ -1,4 +1,4 @@
-name: Apply document record policy
+name: Apply external record policy
 
 on:
   workflow_dispatch:
@@ -8,7 +8,6 @@ on:
     paths:
       - .github/workflows/apply-document-record-policy.yml
       - scripts/apply_document_record_policy.py
-      - scripts/document_record.py
 
 permissions:
   contents: write
@@ -35,6 +34,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md scripts/validate_skills.py skills
-          git commit -m "Apply UTF-8 document record policy to all skills"
+          git add -A
+          git commit -m "Apply external recorder policy to all skills"
           git push
