@@ -47,6 +47,10 @@ BUGFIX_VALUE_MARKER = "### 2. 是否有必要修复"
 BUGFIX_SKIP_MARKER = "### 3. 能否安全跳过、降级或补偿"
 BUGFIX_DISCUSS_MARKER = "### 4. 修复复杂度是否需要先讨论"
 BUGFIX_LOWER_LAYER_MARKER = "优先考虑下沉到公共框架/底层封装"
+SMALL_CHANGE_CURRENT_IMPL_MARKER = "### 1. 先确认当前实现"
+SMALL_CHANGE_SIMPLE_MARKER = "### 2. 判断能否简单实现"
+SMALL_CHANGE_FRAMEWORK_MARKER = "### 3. 检查是否会明显冲击已有框架"
+SMALL_CHANGE_COMPLETE_MARKER = "### 4. 设计简单，实现完整"
 
 BRANCHABLE_SKILLS = frozenset(
     {
@@ -149,6 +153,16 @@ def validate_skill(skill_dir: Path) -> list[str]:
             )
             if any(marker not in text for marker in bugfix_markers):
                 errors.append("game-bugfix must preserve existence/value/skip/discussion/lower-layer triage rules")
+
+        if name == "game-small-change":
+            small_change_markers = (
+                SMALL_CHANGE_CURRENT_IMPL_MARKER,
+                SMALL_CHANGE_SIMPLE_MARKER,
+                SMALL_CHANGE_FRAMEWORK_MARKER,
+                SMALL_CHANGE_COMPLETE_MARKER,
+            )
+            if any(marker not in text for marker in small_change_markers):
+                errors.append("game-small-change must preserve current-implementation/simple-design/framework-confirmation/complete-implementation rules")
     else:
         if DOCUMENT_TIMING_RULE not in text:
             errors.append("missing canonical stage-document update timing rule")
