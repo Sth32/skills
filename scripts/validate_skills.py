@@ -42,6 +42,11 @@ LIGHTWEIGHT_DEV_MARKER = "开发期默认"
 HOTFIX_PREREQUISITE_MARKER = "## 使用前提"
 HOTFIX_USER_CONFIRM_MARKER = "Agent 不得自行判断“项目已经上线”"
 HOTFIX_DECOUPLING_MARKER = "不是 Hotfix 发布框架、事故响应流程或项目基础设施规范"
+BUGFIX_EXISTENCE_MARKER = "### 1. Bug 是否真实存在"
+BUGFIX_VALUE_MARKER = "### 2. 是否有必要修复"
+BUGFIX_SKIP_MARKER = "### 3. 能否安全跳过、降级或补偿"
+BUGFIX_DISCUSS_MARKER = "### 4. 修复复杂度是否需要先讨论"
+BUGFIX_LOWER_LAYER_MARKER = "优先考虑下沉到公共框架/底层封装"
 
 BRANCHABLE_SKILLS = frozenset(
     {
@@ -133,6 +138,17 @@ def validate_skill(skill_dir: Path) -> list[str]:
                 errors.append("game-hotfix must remain decoupled from project-specific hotfix infrastructure")
         elif LIGHTWEIGHT_DEV_MARKER not in text:
             errors.append("non-hotfix lightweight skill must define development-environment handling")
+
+        if name == "game-bugfix":
+            bugfix_markers = (
+                BUGFIX_EXISTENCE_MARKER,
+                BUGFIX_VALUE_MARKER,
+                BUGFIX_SKIP_MARKER,
+                BUGFIX_DISCUSS_MARKER,
+                BUGFIX_LOWER_LAYER_MARKER,
+            )
+            if any(marker not in text for marker in bugfix_markers):
+                errors.append("game-bugfix must preserve existence/value/skip/discussion/lower-layer triage rules")
     else:
         if DOCUMENT_TIMING_RULE not in text:
             errors.append("missing canonical stage-document update timing rule")
