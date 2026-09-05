@@ -40,6 +40,8 @@ LIGHTWEIGHT_SKILLS = frozenset(
 LIGHTWEIGHT_DOC_MARKER = "## 文档"
 LIGHTWEIGHT_DEV_MARKER = "开发期默认"
 HOTFIX_PREREQUISITE_MARKER = "## 使用前提"
+HOTFIX_USER_CONFIRM_MARKER = "Agent 不得自行判断“项目已经上线”"
+HOTFIX_DECOUPLING_MARKER = "不是 Hotfix 发布框架、事故响应流程或项目基础设施规范"
 
 BRANCHABLE_SKILLS = frozenset(
     {
@@ -125,6 +127,10 @@ def validate_skill(skill_dir: Path) -> list[str]:
         if name == "game-hotfix":
             if HOTFIX_PREREQUISITE_MARKER not in text:
                 errors.append("game-hotfix must define its production-use prerequisite")
+            if HOTFIX_USER_CONFIRM_MARKER not in text:
+                errors.append("game-hotfix must require user confirmation of production status")
+            if HOTFIX_DECOUPLING_MARKER not in text:
+                errors.append("game-hotfix must remain decoupled from project-specific hotfix infrastructure")
         elif LIGHTWEIGHT_DEV_MARKER not in text:
             errors.append("non-hotfix lightweight skill must define development-environment handling")
     else:
