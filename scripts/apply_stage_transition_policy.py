@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply the canonical stage-transition gate to all skills and README."""
+"""Apply the canonical stage-transition gate to formal workflow skills."""
 
 from __future__ import annotations
 
@@ -11,6 +11,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS_DIR = ROOT / "skills"
 README = ROOT / "README.md"
+
+LIGHTWEIGHT_SKILLS = frozenset(
+    {
+        "game-bugfix",
+        "game-small-change",
+        "game-refactor",
+        "game-light-review",
+        "game-hotfix",
+    }
+)
 
 STAGE_TRANSITION_RULE = (
     "**阶段切换门禁硬限制：阶段文档顶部“状态”是阶段状态的唯一权威来源，聊天中的“完成”“可以进入下一阶段”"
@@ -75,13 +85,11 @@ def patch_skill(text: str, path: Path) -> str:
 
 
 def patch_readme(text: str) -> str:
+    # README is only a navigation entry. If a legacy stage-gate section exists,
+    # keep it canonical; otherwise do not inject detailed formal-flow policy.
     if README_SECTION_RE.search(text):
         return README_SECTION_RE.sub(README_SECTION, text, count=1)
-
-    anchor = "## 设计原则\n"
-    if anchor not in text:
-        raise ValueError("README: design-principles anchor not found")
-    return text.replace(anchor, README_SECTION + anchor, 1)
+    return text
 
 
 def write_if_changed(path: Path, new_text: str, *, check: bool) -> bool:
@@ -101,6 +109,8 @@ def main() -> int:
     changed: list[Path] = []
     try:
         for skill_file in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+            if skill_file.parent.name in LIGHTWEIGHT_SKILLS:
+                continue
             old = skill_file.read_text(encoding="utf-8")
             new = patch_skill(old, skill_file)
             if write_if_changed(skill_file, new, check=args.check):

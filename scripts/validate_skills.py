@@ -28,6 +28,38 @@ DOCUMENT_CONSISTENCY_RULE = (
 
 DOCUMENT_RECORD_RULE = '**内置记录硬限制：每次逻辑上的文档变更完成后，只执行当前 skill 自带的 `scripts/document_record.py append`，提交本次变更的最小结构化事实；写入器完整实现随 skill 分发，但记录数据仍存放在仓库外。普通开发 Agent 必须把写入器当作只写接口：不得打开、读取、搜索或修改写入器源码，不得查找、定位、读取、搜索、解析或直接修改任何历史记录或记录文件，也不得为了写记录扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。写入器不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过写入器。**'
 
+LIGHTWEIGHT_SKILLS = frozenset(
+    {
+        "game-bugfix",
+        "game-small-change",
+        "game-refactor",
+        "game-light-review",
+        "game-hotfix",
+    }
+)
+LIGHTWEIGHT_DOC_MARKER = "## 文档"
+LIGHTWEIGHT_DEV_MARKER = "开发期默认"
+HOTFIX_PREREQUISITE_MARKER = "## 使用前提"
+HOTFIX_USER_CONFIRM_MARKER = "Agent 不得自行判断“项目已经上线”"
+HOTFIX_DECOUPLING_MARKER = "不是 Hotfix 发布框架、事故响应流程或项目基础设施规范"
+BUGFIX_EXISTENCE_MARKER = "### 1. Bug 是否真实存在"
+BUGFIX_VALUE_MARKER = "### 2. 是否有必要修复"
+BUGFIX_SKIP_MARKER = "### 3. 能否安全跳过、降级或补偿"
+BUGFIX_DISCUSS_MARKER = "### 4. 修复复杂度是否需要先讨论"
+BUGFIX_LOWER_LAYER_MARKER = "优先考虑下沉到公共框架/底层封装"
+SMALL_CHANGE_CURRENT_IMPL_MARKER = "### 1. 先确认当前实现"
+SMALL_CHANGE_SIMPLE_MARKER = "### 2. 判断能否简单实现"
+SMALL_CHANGE_FRAMEWORK_MARKER = "### 3. 检查是否会明显冲击已有框架"
+SMALL_CHANGE_COMPLETE_MARKER = "### 4. 设计简单，实现完整"
+REFACTOR_ANOMALY_MARKER = "**异常结构保护规则："
+REFACTOR_VARIATION_MARKER = "### 4. 判断该统一，还是保留灵活性"
+REFACTOR_QA_MARKER = "### 不把 Agent 验证冒充完整游戏验收"
+REFACTOR_REDIRECT_MARKER = "### 5. 判断是 Refactor 还是 Redesign"
+LIGHT_REVIEW_REALITY_MARKER = "### 1. 先确认问题真实成立"
+LIGHT_REVIEW_VALUE_MARKER = "### 2. 判断是否值得现在改"
+LIGHT_REVIEW_PREFERENCE_MARKER = "### 3. 区分 Finding 与偏好"
+LIGHT_REVIEW_QA_MARKER = "## QA 与验证边界"
+
 BRANCHABLE_SKILLS = frozenset(
     {
         "game-discovery",
@@ -55,7 +87,9 @@ TARGETED_RULE_MARKERS = {
 REQUIRED_REPO_FILES = (
     "docs/skill-development/document-change-record.md",
     "docs/skill-development/branch-workflow.md",
+    "docs/skill-development/maintenance-workflow.md",
     "evals/branch-workflow.md",
+    "evals/maintenance-workflow.md",
 )
 
 
@@ -101,17 +135,76 @@ def validate_skill(skill_dir: Path) -> list[str]:
         errors.append("name length must be 1-64 characters")
     if not 1 <= len(description) <= 1024:
         errors.append("description length must be 1-1024 characters")
-    if DOCUMENT_TIMING_RULE not in text:
-        errors.append("missing canonical stage-document update timing rule")
-    if DOCUMENT_IMPACT_RULE not in text:
-        errors.append("missing canonical structural-change impact propagation rule")
-    if DOCUMENT_CONSISTENCY_RULE not in text:
-        errors.append("missing canonical stage-completion consistency rule")
+
+    if name in LIGHTWEIGHT_SKILLS:
+        if LIGHTWEIGHT_DOC_MARKER not in text:
+            errors.append("lightweight maintenance skill must define optional documentation behavior")
+        if "01–07" not in text:
+            errors.append("lightweight maintenance skill must explicitly distinguish itself from the formal 01–07 workflow")
+        if name == "game-hotfix":
+            if HOTFIX_PREREQUISITE_MARKER not in text:
+                errors.append("game-hotfix must define its production-use prerequisite")
+            if HOTFIX_USER_CONFIRM_MARKER not in text:
+                errors.append("game-hotfix must require user confirmation of production status")
+            if HOTFIX_DECOUPLING_MARKER not in text:
+                errors.append("game-hotfix must remain decoupled from project-specific hotfix infrastructure")
+        elif LIGHTWEIGHT_DEV_MARKER not in text:
+            errors.append("non-hotfix lightweight skill must define development-environment handling")
+
+        if name == "game-bugfix":
+            bugfix_markers = (
+                BUGFIX_EXISTENCE_MARKER,
+                BUGFIX_VALUE_MARKER,
+                BUGFIX_SKIP_MARKER,
+                BUGFIX_DISCUSS_MARKER,
+                BUGFIX_LOWER_LAYER_MARKER,
+            )
+            if any(marker not in text for marker in bugfix_markers):
+                errors.append("game-bugfix must preserve existence/value/skip/discussion/lower-layer triage rules")
+
+        if name == "game-small-change":
+            small_change_markers = (
+                SMALL_CHANGE_CURRENT_IMPL_MARKER,
+                SMALL_CHANGE_SIMPLE_MARKER,
+                SMALL_CHANGE_FRAMEWORK_MARKER,
+                SMALL_CHANGE_COMPLETE_MARKER,
+            )
+            if any(marker not in text for marker in small_change_markers):
+                errors.append("game-small-change must preserve current-implementation/simple-design/framework-confirmation/complete-implementation rules")
+
+        if name == "game-refactor":
+            refactor_markers = (
+                REFACTOR_ANOMALY_MARKER,
+                REFACTOR_VARIATION_MARKER,
+                REFACTOR_QA_MARKER,
+                REFACTOR_REDIRECT_MARKER,
+            )
+            if any(marker not in text for marker in refactor_markers):
+                errors.append("game-refactor must preserve anomaly/variation/QA/redesign boundary rules")
+
+        if name == "game-light-review":
+            light_review_markers = (
+                LIGHT_REVIEW_REALITY_MARKER,
+                LIGHT_REVIEW_VALUE_MARKER,
+                LIGHT_REVIEW_PREFERENCE_MARKER,
+                LIGHT_REVIEW_QA_MARKER,
+            )
+            if any(marker not in text for marker in light_review_markers):
+                errors.append("game-light-review must preserve reality/value/preference/QA review boundaries")
+    else:
+        if DOCUMENT_TIMING_RULE not in text:
+            errors.append("missing canonical stage-document update timing rule")
+        if DOCUMENT_IMPACT_RULE not in text:
+            errors.append("missing canonical structural-change impact propagation rule")
+        if DOCUMENT_CONSISTENCY_RULE not in text:
+            errors.append("missing canonical stage-completion consistency rule")
+
     if DOCUMENT_RECORD_RULE not in text:
         errors.append("missing canonical bundled record rule")
     writer = skill_dir / "scripts" / "document_record.py"
     if not writer.is_file():
         errors.append("missing bundled document recorder")
+
     targeted_marker = TARGETED_RULE_MARKERS.get(name)
     if targeted_marker and targeted_marker not in text:
         errors.append("missing targeted cross-layer contract/runtime-chain rule")
