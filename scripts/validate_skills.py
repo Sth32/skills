@@ -55,6 +55,10 @@ REFACTOR_ANOMALY_MARKER = "**异常结构保护规则："
 REFACTOR_VARIATION_MARKER = "### 4. 判断该统一，还是保留灵活性"
 REFACTOR_QA_MARKER = "### 不把 Agent 验证冒充完整游戏验收"
 REFACTOR_REDIRECT_MARKER = "### 5. 判断是 Refactor 还是 Redesign"
+LIGHT_REVIEW_REALITY_MARKER = "### 1. 先确认问题真实成立"
+LIGHT_REVIEW_VALUE_MARKER = "### 2. 判断是否值得现在改"
+LIGHT_REVIEW_PREFERENCE_MARKER = "### 3. 区分 Finding 与偏好"
+LIGHT_REVIEW_QA_MARKER = "## QA 与验证边界"
 
 BRANCHABLE_SKILLS = frozenset(
     {
@@ -177,6 +181,16 @@ def validate_skill(skill_dir: Path) -> list[str]:
             )
             if any(marker not in text for marker in refactor_markers):
                 errors.append("game-refactor must preserve anomaly/variation/QA/redesign boundary rules")
+
+        if name == "game-light-review":
+            light_review_markers = (
+                LIGHT_REVIEW_REALITY_MARKER,
+                LIGHT_REVIEW_VALUE_MARKER,
+                LIGHT_REVIEW_PREFERENCE_MARKER,
+                LIGHT_REVIEW_QA_MARKER,
+            )
+            if any(marker not in text for marker in light_review_markers):
+                errors.append("game-light-review must preserve reality/value/preference/QA review boundaries")
     else:
         if DOCUMENT_TIMING_RULE not in text:
             errors.append("missing canonical stage-document update timing rule")
