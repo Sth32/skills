@@ -28,6 +28,19 @@ DOCUMENT_CONSISTENCY_RULE = (
 
 DOCUMENT_RECORD_RULE = '**内置记录硬限制：每次逻辑上的文档变更完成后，只执行当前 skill 自带的 `scripts/document_record.py append`，提交本次变更的最小结构化事实；写入器完整实现随 skill 分发，但记录数据仍存放在仓库外。普通开发 Agent 必须把写入器当作只写接口：不得打开、读取、搜索或修改写入器源码，不得查找、定位、读取、搜索、解析或直接修改任何历史记录或记录文件，也不得为了写记录扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。写入器不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过写入器。**'
 
+LIGHTWEIGHT_SKILLS = frozenset(
+    {
+        "game-bugfix",
+        "game-small-change",
+        "game-refactor",
+        "game-light-review",
+        "game-hotfix",
+    }
+)
+LIGHTWEIGHT_DOC_MARKER = "## 文档"
+LIGHTWEIGHT_DEV_MARKER = "开发期默认"
+HOTFIX_PREREQUISITE_MARKER = "## 使用前提"
+
 BRANCHABLE_SKILLS = frozenset(
     {
         "game-discovery",
@@ -55,7 +68,9 @@ TARGETED_RULE_MARKERS = {
 REQUIRED_REPO_FILES = (
     "docs/skill-development/document-change-record.md",
     "docs/skill-development/branch-workflow.md",
+    "docs/skill-development/maintenance-workflow.md",
     "evals/branch-workflow.md",
+    "evals/maintenance-workflow.md",
 )
 
 
@@ -101,17 +116,30 @@ def validate_skill(skill_dir: Path) -> list[str]:
         errors.append("name length must be 1-64 characters")
     if not 1 <= len(description) <= 1024:
         errors.append("description length must be 1-1024 characters")
-    if DOCUMENT_TIMING_RULE not in text:
-        errors.append("missing canonical stage-document update timing rule")
-    if DOCUMENT_IMPACT_RULE not in text:
-        errors.append("missing canonical structural-change impact propagation rule")
-    if DOCUMENT_CONSISTENCY_RULE not in text:
-        errors.append("missing canonical stage-completion consistency rule")
-    if DOCUMENT_RECORD_RULE not in text:
-        errors.append("missing canonical bundled record rule")
-    writer = skill_dir / "scripts" / "document_record.py"
-    if not writer.is_file():
-        errors.append("missing bundled document recorder")
+
+    if name in LIGHTWEIGHT_SKILLS:
+        if LIGHTWEIGHT_DOC_MARKER not in text:
+            errors.append("lightweight maintenance skill must define optional documentation behavior")
+        if "01–07" not in text:
+            errors.append("lightweight maintenance skill must explicitly distinguish itself from the formal 01–07 workflow")
+        if name == "game-hotfix":
+            if HOTFIX_PREREQUISITE_MARKER not in text:
+                errors.append("game-hotfix must define its production-use prerequisite")
+        elif LIGHTWEIGHT_DEV_MARKER not in text:
+            errors.append("non-hotfix lightweight skill must define development-environment handling")
+    else:
+        if DOCUMENT_TIMING_RULE not in text:
+            errors.append("missing canonical stage-document update timing rule")
+        if DOCUMENT_IMPACT_RULE not in text:
+            errors.append("missing canonical structural-change impact propagation rule")
+        if DOCUMENT_CONSISTENCY_RULE not in text:
+            errors.append("missing canonical stage-completion consistency rule")
+        if DOCUMENT_RECORD_RULE not in text:
+            errors.append("missing canonical bundled record rule")
+        writer = skill_dir / "scripts" / "document_record.py"
+        if not writer.is_file():
+            errors.append("missing bundled document recorder")
+
     targeted_marker = TARGETED_RULE_MARKERS.get(name)
     if targeted_marker and targeted_marker not in text:
         errors.append("missing targeted cross-layer contract/runtime-chain rule")
