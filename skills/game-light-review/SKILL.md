@@ -72,6 +72,8 @@ metadata:
 
 ## 文档
 
-默认只在对话中输出 Review 结果，不创建维护文档。
+默认只在对话中输出 Review 结果，不创建维护文档。**只有用户明确要求保存本次 Review 时，才创建新的轻量评审记录。**
 
-只有用户明确要求保存 review、需要跨 session 接力或团队流程要求落盘时，才使用 `references/轻量评审模板.md`。不得创建 `07-交叉评审.md` 或模仿正式 Review 的多 Agent 状态结构，除非用户明确切换到 `game-review`。
+- 用户要求保存时：使用 `references/轻量评审模板.md`。
+- 跨 session、多人接力或团队可能需要留档时，Agent 可以建议保存，但用户未明确要求前不得自行创建。
+- 不得创建 `07-交叉评审.md` 或模仿正式 Review 的多 Agent 状态结构，除非用户明确切换到 `game-review`。
