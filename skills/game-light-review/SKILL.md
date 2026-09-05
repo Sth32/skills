@@ -77,3 +77,5 @@ metadata:
 - 用户要求保存时：使用 `references/轻量评审模板.md`。
 - 跨 session、多人接力或团队可能需要留档时，Agent 可以建议保存，但用户未明确要求前不得自行创建。
 - 不得创建 `07-交叉评审.md` 或模仿正式 Review 的多 Agent 状态结构，除非用户明确切换到 `game-review`。
+
+**内置记录硬限制：每次逻辑上的文档变更完成后，只执行当前 skill 自带的 `scripts/document_record.py append`，提交本次变更的最小结构化事实；写入器完整实现随 skill 分发，但记录数据仍存放在仓库外。普通开发 Agent 必须把写入器当作只写接口：不得打开、读取、搜索或修改写入器源码，不得查找、定位、读取、搜索、解析或直接修改任何历史记录或记录文件，也不得为了写记录扫描工作区中的 record 文件。同一原因、同一轮的原子变更只提交一次，携带实际变化文档、trigger、reason、change summary、validation、outcome 与必要 feedback；正常进度不得虚构问题、根因或预防建议。用户改变需求使用 `user_change`，用户指出 Agent/文档错误使用 `user_correction`。写入器不可用或失败时，明确报告记录未写入，但不得通过 shell 重定向、通用文本 API 或直接文件操作绕过写入器。**
