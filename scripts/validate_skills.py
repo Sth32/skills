@@ -134,11 +134,12 @@ def validate_skill(skill_dir: Path) -> list[str]:
             errors.append("missing canonical structural-change impact propagation rule")
         if DOCUMENT_CONSISTENCY_RULE not in text:
             errors.append("missing canonical stage-completion consistency rule")
-        if DOCUMENT_RECORD_RULE not in text:
-            errors.append("missing canonical bundled record rule")
-        writer = skill_dir / "scripts" / "document_record.py"
-        if not writer.is_file():
-            errors.append("missing bundled document recorder")
+
+    if DOCUMENT_RECORD_RULE not in text:
+        errors.append("missing canonical bundled record rule")
+    writer = skill_dir / "scripts" / "document_record.py"
+    if not writer.is_file():
+        errors.append("missing bundled document recorder")
 
     targeted_marker = TARGETED_RULE_MARKERS.get(name)
     if targeted_marker and targeted_marker not in text:
