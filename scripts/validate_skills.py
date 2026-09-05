@@ -51,6 +51,10 @@ SMALL_CHANGE_CURRENT_IMPL_MARKER = "### 1. 先确认当前实现"
 SMALL_CHANGE_SIMPLE_MARKER = "### 2. 判断能否简单实现"
 SMALL_CHANGE_FRAMEWORK_MARKER = "### 3. 检查是否会明显冲击已有框架"
 SMALL_CHANGE_COMPLETE_MARKER = "### 4. 设计简单，实现完整"
+REFACTOR_ANOMALY_MARKER = "**异常结构保护规则："
+REFACTOR_VARIATION_MARKER = "### 4. 判断该统一，还是保留灵活性"
+REFACTOR_QA_MARKER = "### 不把 Agent 验证冒充完整游戏验收"
+REFACTOR_REDIRECT_MARKER = "### 5. 判断是 Refactor 还是 Redesign"
 
 BRANCHABLE_SKILLS = frozenset(
     {
@@ -163,6 +167,16 @@ def validate_skill(skill_dir: Path) -> list[str]:
             )
             if any(marker not in text for marker in small_change_markers):
                 errors.append("game-small-change must preserve current-implementation/simple-design/framework-confirmation/complete-implementation rules")
+
+        if name == "game-refactor":
+            refactor_markers = (
+                REFACTOR_ANOMALY_MARKER,
+                REFACTOR_VARIATION_MARKER,
+                REFACTOR_QA_MARKER,
+                REFACTOR_REDIRECT_MARKER,
+            )
+            if any(marker not in text for marker in refactor_markers):
+                errors.append("game-refactor must preserve anomaly/variation/QA/redesign boundary rules")
     else:
         if DOCUMENT_TIMING_RULE not in text:
             errors.append("missing canonical stage-document update timing rule")
